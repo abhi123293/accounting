@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
+import CashFlowChart from "@/components/dashboard/CashFlowChart";
 
 const stats = [
   {
@@ -97,12 +98,12 @@ export default function DashboardPage() {
 
           <section className="grid gap-6 xl:grid-cols-3">
             <article className="rounded-xl border border-border bg-card p-5 sm:p-6 xl:col-span-2">
-              <div>
-                <h2 className="text-lg font-semibold">Cash Flow</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Cash received and paid over time
-                </p>
-              </div>
+             <div className="mt-6">
+  <CashFlowChart />
+  <p className="mt-3 text-xs text-muted-foreground">
+    Illustrative sample data — not actual business cash flow.
+  </p>
+</div>
 
               <div className="mt-6 flex min-h-64 flex-col items-center justify-center rounded-lg border border-dashed border-border p-6 text-center">
                 <TrendingUp className="mb-3 h-8 w-8 text-muted-foreground" />

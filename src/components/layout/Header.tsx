@@ -1,9 +1,9 @@
-
 "use client";
 
 import { usePathname } from "next/navigation";
 import { Bell } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
+import MobileSidebar from "./MobileSidebar";
 
 const titles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -21,16 +21,23 @@ export default function Header() {
 
   return (
     <header className="flex min-h-20 items-center justify-between gap-4 border-b border-border bg-background px-5 sm:px-8">
-      <div>
-        <h2 className="text-xl font-semibold tracking-tight">
-          {title}
-        </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Welcome back, Admin
-        </p>
+      {/* Left section: Mobile menu + page title */}
+      <div className="flex min-w-0 items-center gap-3">
+        <MobileSidebar />
+
+        <div className="min-w-0">
+          <h2 className="text-xl font-semibold tracking-tight">
+            {title}
+          </h2>
+
+          <p className="mt-1 text-sm text-muted-foreground">
+            Welcome back, Admin
+          </p>
+        </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      {/* Right section: Actions */}
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         <button
           type="button"
           aria-label="Notifications"
