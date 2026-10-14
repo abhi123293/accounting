@@ -130,15 +130,15 @@ export default function RegisterForm() {
       return;
     }
 
-setLoading(true);
-      try {
-        const result = await createUserWithEmailAndPassword(auth, email, password);
-        await updateProfile(result.user, { displayName: name.trim() });
-        await signIn(email, password);
-        setSuccess("Account created successfully! Welcome to your dashboard.");
-        router.replace(redirect);
-        router.refresh();
-      } catch (err) {
+    setLoading(true);
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(result.user, { displayName: name.trim() });
+      await signIn(email, password);
+      setSuccess("Account created successfully! Welcome to your dashboard.");
+      router.replace(redirect);
+      router.refresh();
+    } catch (err) {
       const error = err as { code?: string; message?: string };
       switch (error.code) {
         case "auth/email-already-in-use":

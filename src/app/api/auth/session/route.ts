@@ -5,6 +5,13 @@ const SESSION_DURATION = 5 * 24 * 60 * 60 * 1000;
 
 export async function POST(request: Request) {
   try {
+    if (!adminAuth) {
+      return NextResponse.json(
+        { error: "Firebase Admin not configured" },
+        { status: 503 }
+      );
+    }
+
     const authorization = request.headers.get("authorization");
     const token = authorization?.startsWith("Bearer ")
       ? authorization.slice(7)
@@ -33,7 +40,7 @@ export async function POST(request: Request) {
 
     const response = NextResponse.json({ success: true });
 
-    response.cookies.set("session", sessionCookie, {
+    response.cookies.set("__session", sessionCookie, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -53,7 +60,7 @@ export async function POST(request: Request) {
 export async function DELETE() {
   const response = NextResponse.json({ success: true });
 
-  response.cookies.set("session", "", {
+  response.cookies.set("__session", "", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

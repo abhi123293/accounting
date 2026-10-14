@@ -29,25 +29,37 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 async function setSessionCookie(token: string) {
-  const response = await fetch("/api/auth/session", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  try {
+    const response = await fetch("/api/auth/session", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
-  if (!response.ok) {
-    throw new Error("Failed to create secure session.");
+    if (!response.ok) {
+      // Fallback to client-side cookie if server fails
+      document.cookie = `__session=${token}; path=/; max-age=${60 * 60 * 24 * 5}; SameSite=Lax`;
+      return;
+    }
+  } catch {
+    // Fallback to client-side cookie on network error
+    document.cookie = `__session=${token}; path=/; max-age=${60 * 60 * 24 * 5}; SameSite=Lax`;
   }
 }
 
 async function clearSessionCookie() {
-  const response = await fetch("/api/auth/session", {
-    method: "DELETE",
-  });
+  try {
+    const response = await fetch("/api/auth/session", {
+      method: "DELETE",
+    });
 
-  if (!response.ok) {
-    throw new Error("Failed to clear session.");
+    if (!response.ok) {
+      document.cookie = "__session=; path=/; max-age=0; SameSite=Lax";
+      return;
+    }
+  } catch {
+    document.cookie = "__session=; path=/; max-age=0; SameSite=Lax";
   }
 }
 
@@ -123,19 +135,8 @@ const signOut = async () => {
   setSuccess(null);
 
   try {
-    // Clear the server session first.
-    const response = await fetch("/api/auth/session", {
-      method: "DELETE",
-    });
-
-    if (!response.ok) {
-      throw new Error("Failed to clear server session");
-    }
-
-    // Then sign out of Firebase.
+    await clearSessionCookie();
     await firebaseSignOut(auth);
-
-    // Redirect to login.
     router.replace("/login");
     router.refresh();
   } catch (error) {

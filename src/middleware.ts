@@ -15,7 +15,7 @@ const authRoutes = ["/login", "/register", "/reset-password"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-const sessionCookie = request.cookies.get("session")?.value;
+  const sessionCookie = request.cookies.get("__session")?.value;
 
   const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
   const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));

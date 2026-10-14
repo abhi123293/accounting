@@ -3,6 +3,13 @@ import { adminAuth } from "@/lib/firebase-admin";
 
 export async function POST(request: Request) {
   try {
+    if (!adminAuth) {
+      return NextResponse.json(
+        { error: "Firebase Admin not configured" },
+        { status: 503 }
+      );
+    }
+
     const authorization = request.headers.get("authorization");
     const token = authorization?.startsWith("Bearer ")
       ? authorization.slice(7)
