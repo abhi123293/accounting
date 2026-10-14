@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -184,20 +183,24 @@ export default function DashboardPage() {
 
               {/* Selected Date Range */}
            
-<p
-  className="w-full text-xs text-muted-foreground"
-  aria-live="polite"
->
-  {invalidDateRange
-    ? "End date must be on or after the start date."
-    : !dateRange
-      ? reportingPeriod === "custom"
-        ? "Select both dates to continue."
-        : "Select a valid reporting period."
-      : `Showing ${dateRange.startDate} to ${dateRange.endDate}`}
-</p>
+            <p
+              className="w-full text-xs text-muted-foreground"
+              aria-live="polite"
+            >
+              {invalidDateRange
+                ? "End date must be on or after the start date."
+                : !dateRange
+                  ? reportingPeriod === "custom"
+                    ? "Select both dates to continue."
+                    : "Select a valid reporting period."
+                  : `Showing ${dateRange.startDate} to ${dateRange.endDate}`}
+            </p>
 
             </div>
+
+            <span className="rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground">
+              Current reporting period
+            </span>
           </section>
 
           {/* Financial Statistics */}
