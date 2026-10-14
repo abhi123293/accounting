@@ -1,3 +1,4 @@
+"use client";
 
 "use client";
 import { useState } from "react";
@@ -10,39 +11,38 @@ import {
   ArrowDownRight,
   ChevronDown,
 } from "lucide-react";
+import Link from "next/link";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import CashFlowChart from "@/components/dashboard/CashFlowChart";
 import {getReportingDateRange,type ReportingPeriod,} from "@/lib/reporting-period";
-import { useBusinessSettings } from "@/hooks/useBusinessSettings";
+import { useBusinessSettings } from "@/hooks/useBusinessSettings";import { useRequireAuth } from "@/lib/auth-context";
+import { cn } from "cn";
+
 const stats = [
   {
     title: "Total Revenue",
     value: "₹ —",
     note: "Selected reporting period",
     icon: TrendingUp,
-    color: "text-emerald-600 dark:text-emerald-400",
   },
   {
     title: "Total Expenses",
     value: "₹ —",
     note: "Selected reporting period",
     icon: TrendingDown,
-    color: "text-rose-600 dark:text-rose-400",
   },
   {
     title: "Net Profit",
     value: "₹ —",
     note: "Based on posted transactions",
     icon: Wallet,
-    color: "text-blue-600 dark:text-blue-400",
   },
   {
     title: "Outstanding Invoices",
     value: "₹ —",
     note: "Unpaid customer invoices",
     icon: FileText,
-    color: "text-amber-600 dark:text-amber-400",
   },
 ];
 
@@ -56,9 +56,11 @@ const isCustomRangeIncomplete =reportingPeriod === "custom" &&(!startDate || !en
 const {data: businessSettings,isLoading: isBusinessSettingsLoading,error: businessSettingsError,} = useBusinessSettings();
 
 const invalidDateRange =reportingPeriod === "custom" && Boolean(startDate && endDate) &&startDate > endDate;
+  useRequireAuth();
+
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-      <div className="hidden md:block">
+      <div className="hidden lg:block">
         <Sidebar />
       </div>
 
@@ -169,23 +171,26 @@ const invalidDateRange =reportingPeriod === "custom" && Boolean(startDate && end
 </section>
 
 
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-12">
             {stats.map((stat) => {
               const Icon = stat.icon;
 
               return (
                 <article
                   key={stat.title}
-                  className="rounded-xl border border-border bg-card p-5 shadow-sm"
+                  className={cn(
+                    "rounded-xl border border-border bg-card p-6 shadow-sm transition-all duration-200",
+                    "hover:shadow-md hover:border-muted-foreground/20"
+                  )}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm text-muted-foreground">
                       {stat.title}
                     </p>
-                    <Icon className={`h-5 w-5 ${stat.color}`} />
+                    <Icon className="h-5 w-5 text-primary" />
                   </div>
 
-                  <p className="mt-4 text-2xl font-bold tracking-tight">
+                  <p className="mt-4 text-3xl font-bold tracking-tight text-foreground">
                     {stat.value}
                   </p>
 
@@ -218,46 +223,44 @@ const invalidDateRange =reportingPeriod === "custom" && Boolean(startDate && end
 
 
             </article>
+          </section>
 
-            <article className="rounded-xl border border-border bg-card p-5 sm:p-6">
-              <h2 className="text-lg font-semibold">Recent Activity</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Your latest financial records
-              </p>
+          <section className="grid gap-6 xl:grid-cols-3">
+            <article className="rounded-xl border border-border bg-card p-6 xl:col-span-2">
+              <h2 className="text-lg font-medium text-foreground">Recent Activity</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Your latest financial records</p>
 
               <div className="mt-6 flex min-h-48 flex-col items-center justify-center text-center">
                 <FileText className="mb-3 h-8 w-8 text-muted-foreground" />
-                <p className="font-medium">No activity to display</p>
+                <p className="font-medium text-foreground">No activity to display</p>
                 <p className="mt-2 text-sm text-muted-foreground">
                   Recent invoices and posted transactions will appear here.
                 </p>
               </div>
             </article>
-          </section>
 
-          <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
-            <h2 className="text-lg font-semibold">Quick Actions</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Common accounting tasks
-            </p>
+            <article className="rounded-xl border border-border bg-card p-6">
+              <h2 className="text-lg font-medium text-foreground">Quick Actions</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Common accounting tasks</p>
 
-            <div className="mt-5 flex flex-wrap gap-3">
-              <a
-                href="/invoices"
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90"
-              >
-                Create Invoice
-                <ArrowUpRight className="h-4 w-4" />
-              </a>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Link
+                  href="/invoices"
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                >
+                  Create Invoice
+                  <ArrowUpRight className="h-4 w-4" />
+                </Link>
 
-              <a
-                href="/contacts"
-                className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium hover:bg-accent"
-              >
-                Add Contact
-                <ArrowDownRight className="h-4 w-4" />
-              </a>
-            </div>
+                <Link
+                  href="/contacts"
+                  className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium hover:bg-accent transition-colors"
+                >
+                  Add Contact
+                  <ArrowDownRight className="h-4 w-4" />
+                </Link>
+              </div>
+            </article>
           </section>
         </div>
       </main>

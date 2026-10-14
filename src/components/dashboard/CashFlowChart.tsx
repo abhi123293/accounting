@@ -1,4 +1,3 @@
-
 "use client";
 
 import {
@@ -37,13 +36,13 @@ export default function CashFlowChart() {
         >
           <defs>
             <linearGradient id="receivedFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#16a34a" stopOpacity={0.25} />
-              <stop offset="95%" stopColor="#16a34a" stopOpacity={0} />
+              <stop offset="0%" stopColor="#080808" stopOpacity={0.25} />
+              <stop offset="95%" stopColor="#080808" stopOpacity={0} />
             </linearGradient>
 
             <linearGradient id="paidFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#dc2626" stopOpacity={0.2} />
-              <stop offset="95%" stopColor="#dc2626" stopOpacity={0} />
+              <stop offset="0%" stopColor="#525252" stopOpacity={0.2} />
+              <stop offset="95%" stopColor="#525252" stopOpacity={0} />
             </linearGradient>
           </defs>
 
@@ -84,7 +83,7 @@ export default function CashFlowChart() {
           <Area
             type="monotone"
             dataKey="received"
-            stroke="#16a34a"
+            stroke="#080808"
             strokeWidth={2}
             fill="url(#receivedFill)"
           />
@@ -92,7 +91,7 @@ export default function CashFlowChart() {
           <Area
             type="monotone"
             dataKey="paid"
-            stroke="#dc2626"
+            stroke="#525252"
             strokeWidth={2}
             fill="url(#paidFill)"
           />
