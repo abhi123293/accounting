@@ -1,3 +1,4 @@
+"use client";
 
 import {
   TrendingUp,
@@ -6,10 +7,15 @@ import {
   FileText,
   ArrowUpRight,
   ArrowDownRight,
+  Table,
+  Clock,
 } from "lucide-react";
+import Link from "next/link";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import CashFlowChart from "@/components/dashboard/CashFlowChart";
+import { useRequireAuth } from "@/lib/auth-context";
+import { cn } from "cn";
 
 const stats = [
   {
@@ -17,74 +23,82 @@ const stats = [
     value: "₹ —",
     note: "Selected reporting period",
     icon: TrendingUp,
-    color: "text-emerald-600 dark:text-emerald-400",
   },
   {
     title: "Total Expenses",
     value: "₹ —",
     note: "Selected reporting period",
     icon: TrendingDown,
-    color: "text-rose-600 dark:text-rose-400",
   },
   {
     title: "Net Profit",
     value: "₹ —",
     note: "Based on posted transactions",
     icon: Wallet,
-    color: "text-blue-600 dark:text-blue-400",
   },
   {
     title: "Outstanding Invoices",
     value: "₹ —",
     note: "Unpaid customer invoices",
     icon: FileText,
-    color: "text-amber-600 dark:text-amber-400",
   },
 ];
 
+const recentTransactions = [
+  { id: "TXN-001", date: "2024-01-15", description: "Invoice payment from Acme Corp", type: "received", amount: "₹ 45,000" },
+  { id: "TXN-002", date: "2024-01-14", description: "Office rent payment", type: "paid", amount: "₹ 25,000" },
+  { id: "TXN-003", date: "2024-01-13", description: "Invoice payment from TechStart Inc", type: "received", amount: "₹ 78,500" },
+  { id: "TXN-004", date: "2024-01-12", description: "Software subscription renewal", type: "paid", amount: "₹ 12,000" },
+  { id: "TXN-005", date: "2024-01-11", description: "Invoice payment from Global Ltd", type: "received", amount: "₹ 92,300" },
+];
+
 export default function DashboardPage() {
+  useRequireAuth();
+
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-      <div className="hidden md:block">
+      <div className="hidden lg:block">
         <Sidebar />
       </div>
 
       <main className="min-w-0 flex-1">
         <Header />
 
-        <div className="space-y-8 p-5 sm:p-8">
-          <section className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">
-                Financial Overview
-              </h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Monitor your business finances in one place.
-              </p>
-            </div>
+        <div className="editorial-container py-8 lg:py-12">
+          <section className="mb-12">
+            <div className="editorial-rule-short" />
+            <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+              <div>
+                <h1 className="editorial-heading">Financial Overview</h1>
+                <p className="editorial-body mt-2">Monitor your business finances in one place.</p>
+              </div>
 
-            <span className="rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground">
-              Current reporting period
-            </span>
+              <span className="rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground">
+                Current reporting period
+              </span>
+            </div>
           </section>
 
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-12">
             {stats.map((stat) => {
               const Icon = stat.icon;
 
               return (
                 <article
                   key={stat.title}
-                  className="rounded-xl border border-border bg-card p-5 shadow-sm"
+                  className={cn(
+                    "rounded-xl border border-border bg-card p-6 shadow-sm transition-all duration-200",
+                    "hover:shadow-md hover:border-muted-foreground/20"
+                  )}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm text-muted-foreground">
                       {stat.title}
                     </p>
-                    <Icon className={`h-5 w-5 ${stat.color}`} />
+                    <Icon className="h-5 w-5 text-primary" />
                   </div>
 
-                  <p className="mt-4 text-2xl font-bold tracking-tight">
+                  <p className="mt-4 text-3xl font-bold tracking-tight text-foreground">
                     {stat.value}
                   </p>
 
@@ -96,64 +110,105 @@ export default function DashboardPage() {
             })}
           </section>
 
-          <section className="grid gap-6 xl:grid-cols-3">
-            <article className="rounded-xl border border-border bg-card p-5 sm:p-6 xl:col-span-2">
-             <div className="mt-6">
-  <CashFlowChart />
-  <p className="mt-3 text-xs text-muted-foreground">
-    Illustrative sample data — not actual business cash flow.
-  </p>
-</div>
-
-              <div className="mt-6 flex min-h-64 flex-col items-center justify-center rounded-lg border border-dashed border-border p-6 text-center">
-                <TrendingUp className="mb-3 h-8 w-8 text-muted-foreground" />
-                <p className="font-medium">Cash flow chart</p>
-                <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-                  The chart will display financial data once the accounting
-                  records and reporting calculations are connected.
+          <section className="grid gap-6 xl:grid-cols-3 mb-12">
+            <article className="rounded-xl border border-border bg-card p-6 xl:col-span-2">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-lg font-medium text-foreground">Cash Flow Overview</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Revenue vs Expenses over 6 months</p>
+                </div>
+              </div>
+              <div className="mt-4">
+                <CashFlowChart />
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Illustrative sample data — not actual business cash flow.
                 </p>
               </div>
             </article>
 
-            <article className="rounded-xl border border-border bg-card p-5 sm:p-6">
-              <h2 className="text-lg font-semibold">Recent Activity</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Your latest financial records
-              </p>
+            <article className="rounded-xl border border-border bg-card p-6">
+              <h2 className="text-lg font-medium text-foreground">Recent Transactions</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Latest financial activity</p>
+
+              <div className="mt-6">
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/50 border-b border-border">
+                        <th className="px-4 py-3 text-left font-medium text-foreground">Transaction</th>
+                        <th className="px-4 py-3 text-right font-medium text-foreground">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentTransactions.map((txn) => (
+                        <tr key={txn.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-foreground">{txn.description}</div>
+                            <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                              <span>{txn.date}</span>
+                              <span>•</span>
+                              <span className={cn("px-1.5 py-0.5 rounded text-xs", txn.type === "received" ? "bg-green-500/10 text-green-700" : "bg-red-500/10 text-red-700")}>
+                                {txn.type === "received" ? "Received" : "Paid"}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium text-foreground">
+                            {txn.type === "received" ? (
+                              <span className="text-green-700">+ {txn.amount}</span>
+                            ) : (
+                              <span className="text-red-700">- {txn.amount}</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-4 text-center">
+                  <Link href="/ledger" className="text-sm font-medium text-primary hover:underline">
+                    View all transactions →
+                  </Link>
+                </div>
+              </div>
+            </article>
+          </section>
+
+          <section className="grid gap-6 xl:grid-cols-3">
+            <article className="rounded-xl border border-border bg-card p-6 xl:col-span-2">
+              <h2 className="text-lg font-medium text-foreground">Recent Activity</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Your latest financial records</p>
 
               <div className="mt-6 flex min-h-48 flex-col items-center justify-center text-center">
                 <FileText className="mb-3 h-8 w-8 text-muted-foreground" />
-                <p className="font-medium">No activity to display</p>
+                <p className="font-medium text-foreground">No activity to display</p>
                 <p className="mt-2 text-sm text-muted-foreground">
                   Recent invoices and posted transactions will appear here.
                 </p>
               </div>
             </article>
-          </section>
 
-          <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
-            <h2 className="text-lg font-semibold">Quick Actions</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Common accounting tasks
-            </p>
+            <article className="rounded-xl border border-border bg-card p-6">
+              <h2 className="text-lg font-medium text-foreground">Quick Actions</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Common accounting tasks</p>
 
-            <div className="mt-5 flex flex-wrap gap-3">
-              <a
-                href="/invoices"
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90"
-              >
-                Create Invoice
-                <ArrowUpRight className="h-4 w-4" />
-              </a>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Link
+                  href="/invoices"
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                >
+                  Create Invoice
+                  <ArrowUpRight className="h-4 w-4" />
+                </Link>
 
-              <a
-                href="/contacts"
-                className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium hover:bg-accent"
-              >
-                Add Contact
-                <ArrowDownRight className="h-4 w-4" />
-              </a>
-            </div>
+                <Link
+                  href="/contacts"
+                  className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium hover:bg-accent transition-colors"
+                >
+                  Add Contact
+                  <ArrowDownRight className="h-4 w-4" />
+                </Link>
+              </div>
+            </article>
           </section>
         </div>
       </main>
