@@ -13,7 +13,11 @@ import serviceAccount from "../../firebase-service-account.json";
 const app = getApps().length
   ? getApp()
   : initializeApp({
-      credential: cert(serviceAccount),
+      credential: cert({
+  projectId: serviceAccount.project_id,
+  clientEmail: serviceAccount.client_email,
+  privateKey: serviceAccount.private_key,
+}),
     });
 
 export const adminAuth = getAuth(app);

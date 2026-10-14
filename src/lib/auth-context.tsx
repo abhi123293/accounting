@@ -28,12 +28,27 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function setSessionCookie(token: string) {
-  document.cookie = `__session=${token}; path=/; max-age=${60 * 60 * 24 * 5}; SameSite=Lax`;
+async function setSessionCookie(token: string) {
+  const response = await fetch("/api/auth/session", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to create secure session.");
+  }
 }
 
-function clearSessionCookie() {
-  document.cookie = "__session=; path=/; max-age=0; SameSite=Lax";
+async function clearSessionCookie() {
+  const response = await fetch("/api/auth/session", {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to clear session.");
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -44,20 +59,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
+ useEffect(() => {
+  const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    setUser(currentUser);
+
+    try {
       if (currentUser) {
         const token = await getIdToken(currentUser);
-        setSessionCookie(token);
+        await setSessionCookie(token);
       } else {
-        clearSessionCookie();
+        await clearSessionCookie();
       }
+    } catch (error) {
+      console.error("Session synchronization failed:", error);
+      setError("Unable to verify your session. Please sign in again.");
+    } finally {
       setLoading(false);
-    });
+    }
+  });
 
-    return () => unsubscribe();
-  }, []);
+  return () => unsubscribe();
+}, []);
 
   const signIn = async (email: string, password: string) => {
     setError(null);
@@ -65,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const result = await signInWithEmailAndPassword(auth, email, password);
       const token = await getIdToken(result.user);
-      setSessionCookie(token);
+      await setSessionCookie(token);
       setSuccess("Welcome back! You've successfully signed in.");
       router.replace("/dashboard");
       router.refresh();
@@ -95,19 +117,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signOut = async () => {
-    setError(null);
-    setSuccess(null);
-    try {
-      await firebaseSignOut(auth);
-      clearSessionCookie();
-      setSuccess("You have been signed out successfully.");
-      router.replace("/login");
-      router.refresh();
-    } catch {
-      setError("Failed to sign out. Please try again.");
+
+const signOut = async () => {
+  setError(null);
+  setSuccess(null);
+
+  try {
+    // Clear the server session first.
+    const response = await fetch("/api/auth/session", {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to clear server session");
     }
-  };
+
+    // Then sign out of Firebase.
+    await firebaseSignOut(auth);
+
+    // Redirect to login.
+    router.replace("/login");
+    router.refresh();
+  } catch (error) {
+    console.error("Sign out failed:", error);
+    setError("Failed to sign out. Please try again.");
+  }
+};
+
 
   const resetPassword = async (email: string) => {
     setError(null);

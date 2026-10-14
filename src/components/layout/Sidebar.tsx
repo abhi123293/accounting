@@ -12,6 +12,8 @@ import {
   Settings,
   Wallet,
 } from "lucide-react";
+import { LogOut } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 
 const navigation = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -24,6 +26,7 @@ const navigation = [
 ];
 
 export default function Sidebar() {
+    const { signOut } = useAuth();
   const pathname = usePathname();
 
   return (
@@ -76,6 +79,14 @@ export default function Sidebar() {
           Business administrator
         </p>
       </div>
+      <button
+  type="button"
+  onClick={() => void signOut()}
+  className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-destructive"
+>
+  <LogOut className="h-5 w-5" />
+  <span>Sign Out</span>
+</button>
     </aside>
   );
 }

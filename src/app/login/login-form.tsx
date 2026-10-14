@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useAuth, useRedirectIfAuthenticated } from "@/lib/auth-context";
+import { useAuth } from "@/lib/auth-context";
 import { Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,7 @@ export default function LoginForm() {
   const router = useRouter();
   const { signIn, error: authError, success, clearError, clearSuccess } = useAuth();
   const redirect = searchParams.get("redirect") || "/dashboard";
-  useRedirectIfAuthenticated();
+
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -53,31 +53,32 @@ export default function LoginForm() {
     }
   };
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    clearError();
-    clearSuccess();
+ const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  event.preventDefault();
 
-    const emailError = validateEmail(email);
-    const passwordError = validatePassword(password);
+  clearError();
+  clearSuccess();
 
-    if (emailError || passwordError) {
-      setErrors({ email: emailError, password: passwordError });
-      setTouched({ email: true, password: true });
-      return;
-    }
+  const emailError = validateEmail(email);
+  const passwordError = validatePassword(password);
 
-    setLoading(true);
-    try {
-      await signIn(email, password);
-      router.replace(redirect);
-      router.refresh();
-    } catch {
-      // Error handled by auth context
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (emailError || passwordError) {
+    setErrors({ email: emailError, password: passwordError });
+    setTouched({ email: true, password: true });
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    await signIn(email, password);
+    // signIn() handles the redirect after successful authentication.
+  } catch {
+    // The authentication context handles the error.
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleForgotPassword = async () => {
     if (!email) {
