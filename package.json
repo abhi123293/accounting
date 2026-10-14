@@ -10,12 +10,9 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
-<<<<<<< HEAD
     "@tanstack/react-query": "^5.104.2",
-=======
     "@radix-ui/react-switch": "^1.4.1",
     "@radix-ui/react-tabs": "^1.2.1",
->>>>>>> origin/main
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",
     "firebase": "^13.0.0",
