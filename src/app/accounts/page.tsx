@@ -1,17 +1,183 @@
+
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import {
   Plus,
   Download,
-  DollarSign,
+  Wallet,
+  Search,
+  RefreshCw,
 } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import { useRequireAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+type AccountType =
+  | "asset"
+  | "liability"
+  | "equity"
+  | "revenue"
+  | "expense";
+
+interface Account {
+  id: string;
+  code: string;
+  name: string;
+  type: AccountType;
+  isActive: boolean;
+}
+
+const accountTypes: AccountType[] = [
+  "asset",
+  "liability",
+  "equity",
+  "revenue",
+  "expense",
+];
+
+const emptyForm = {
+  code: "",
+  name: "",
+  type: "asset" as AccountType,
+};
 
 export default function AccountsPage() {
-  useRequireAuth();
+  const { user, loading: authLoading } = useRequireAuth();
+
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [form, setForm] = useState(emptyForm);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+
+  const loadAccounts = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/accounts", {
+        cache: "no-store",
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Unable to load accounts.");
+      }
+
+      setAccounts(data.accounts);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to load accounts."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      void loadAccounts();
+    }
+  }, [authLoading, user, loadAccounts]);
+
+  const filteredAccounts = accounts.filter((account) => {
+    const matchesSearch =
+      account.name.toLowerCase().includes(search.toLowerCase()) ||
+      account.code.toLowerCase().includes(search.toLowerCase());
+
+    const matchesType = filter === "all" || account.type === filter;
+
+    return matchesSearch && matchesType;
+  });
+
+  async function handleAddAccount(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+
+    const code = form.code.trim();
+    const name = form.name.trim();
+
+    if (!code || !name) {
+      setError("Account code and account name are required.");
+      return;
+    }
+
+    if (accounts.some((account) => account.code === code)) {
+      setError("An account with this code already exists.");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const response = await fetch("/api/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          name,
+          type: form.type,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Unable to create account.");
+      }
+
+      setAccounts((previous) => [...previous, data.account]);
+      setForm(emptyForm);
+      setShowForm(false);
+      setMessage("Account created successfully.");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to create account."
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function exportAccounts() {
+    const headers = ["Account Code", "Account Name", "Type", "Status"];
+    const rows = filteredAccounts.map((account) => [
+      account.code,
+      account.name,
+      account.type,
+      account.isActive ? "Active" : "Inactive",
+    ]);
+
+    const escapeCsv = (value: string) =>
+      `"${value.replace(/"/g, '""')}"`;
+
+    const csv = [headers, ...rows]
+      .map((row) => row.map(escapeCsv).join(","))
+      .join("\r\n");
+
+    const url = URL.createObjectURL(
+      new Blob(["\uFEFF" + csv], {
+        type: "text/csv;charset=utf-8;",
+      })
+    );
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "chart-of-accounts.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
@@ -22,32 +188,227 @@ export default function AccountsPage() {
       <main className="min-w-0 flex-1">
         <Header />
 
-        <div className="space-y-8 p-5 sm:p-8">
+        <div className="space-y-6 p-5 sm:p-8">
           <section className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <DollarSign className="h-8 w-8 text-primary" />
+              <Wallet className="h-8 w-8 text-primary" />
               <div>
-                <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                <h1 className="text-2xl font-bold tracking-tight">
                   Chart of Accounts
                 </h1>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Manage your general ledger accounts
+                  Manage your general ledger accounts.
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <Button variant="outline" size="sm" className="gap-2">
-                <Download className="h-4 w-4" />
-                Export
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={exportAccounts}
+                disabled={filteredAccounts.length === 0}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export CSV
               </Button>
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" />
+
+              <Button onClick={() => {
+                setError("");
+                setMessage("");
+                setShowForm((value) => !value);
+              }}>
+                <Plus className="mr-2 h-4 w-4" />
                 Add Account
               </Button>
             </div>
           </section>
 
+          {error && (
+            <p role="alert" className="rounded-lg border border-destructive/40 p-3 text-sm text-destructive">
+              {error}
+            </p>
+          )}
+
+          {message && (
+            <p role="status" className="rounded-lg border border-emerald-600/30 p-3 text-sm text-emerald-700">
+              {message}
+            </p>
+          )}
+
+          {showForm && (
+            <section className="rounded-xl border border-border bg-card p-5">
+              <h2 className="mb-4 text-lg font-semibold">Add Account</h2>
+
+              <form
+                onSubmit={handleAddAccount}
+                className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="account-code">Account code</Label>
+                  <Input
+                    id="account-code"
+                    value={form.code}
+                    onChange={(event) =>
+                      setForm({ ...form, code: event.target.value })
+                    }
+                    placeholder="e.g. 1001"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="account-name">Account name</Label>
+                  <Input
+                    id="account-name"
+                    value={form.name}
+                    onChange={(event) =>
+                      setForm({ ...form, name: event.target.value })
+                    }
+                    placeholder="e.g. Bank Account"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="account-type">Account type</Label>
+                  <select
+                    id="account-type"
+                    value={form.type}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        type: event.target.value as AccountType,
+                      })
+                    }
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    {accountTypes.map((type) => (
+                      <option key={type} value={type}>
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-end gap-2">
+                  <Button type="submit" disabled={saving}>
+                    {saving ? "Saving..." : "Save Account"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowForm(false)}
+                    disabled={saving}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </section>
+          )}
+
+          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {accountTypes.map((type) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setFilter(filter === type ? "all" : type)}
+                className={`rounded-xl border p-4 text-left transition-colors ${
+                  filter === type
+                    ? "border-primary bg-primary/5"
+                    : "border-border bg-card hover:bg-accent"
+                }`}
+              >
+                <p className="text-sm capitalize text-muted-foreground">
+                  {type}
+                </p>
+                <p className="mt-2 text-2xl font-semibold">
+                  {accounts.filter((account) => account.type === type).length}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Accounts
+                </p>
+              </button>
+            ))}
+          </section>
+
+          <section className="overflow-hidden rounded-xl border border-border bg-card">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
+              <div>
+                <h2 className="font-semibold">All Accounts</h2>
+                <p className="text-sm text-muted-foreground">
+                  {filteredAccounts.length} account(s)
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    aria-label="Search accounts"
+                    placeholder="Search code or name"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="Refresh accounts"
+                  onClick={() => void loadAccounts()}
+                  disabled={loading}
+                >
+                  <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 text-left">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Code</th>
+                    <th className="px-4 py-3 font-medium">Account name</th>
+                    <th className="px-4 py-3 font-medium">Type</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">
+                        Loading accounts...
+                      </td>
+                    </tr>
+                  ) : filteredAccounts.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">
+                        No accounts found. Add an account to get started.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredAccounts.map((account) => (
+                      <tr key={account.id} className="hover:bg-muted/30">
+                        <td className="px-4 py-3 font-mono">{account.code}</td>
+                        <td className="px-4 py-3 font-medium">{account.name}</td>
+                        <td className="px-4 py-3 capitalize">{account.type}</td>
+                        <td className="px-4 py-3">
+                          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                            account.isActive
+                              ? "bg-emerald-500/10 text-emerald-700"
+                              : "bg-muted text-muted-foreground"
+                          }`}>
+                            {account.isActive ? "Active" : "Inactive"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
       </main>
     </div>

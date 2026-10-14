@@ -17,6 +17,7 @@
     "cn": "^0.4.0",
     "firebase": "^13.0.0",
     "firebase-admin": "^14.5.0",
+    "jspdf": "^4.2.1",
     "lucide-react": "^1.56.0",
     "next": "16.4.0",
     "next-themes": "^1.0.0-beta.0",

@@ -83,7 +83,7 @@ export default function CashFlowChart() {
           <Area
             type="monotone"
             dataKey="received"
-            stroke="#080808"
+            stroke="#16e26e"
             strokeWidth={2}
             fill="url(#receivedFill)"
           />
@@ -91,7 +91,7 @@ export default function CashFlowChart() {
           <Area
             type="monotone"
             dataKey="paid"
-            stroke="#525252"
+            stroke="#e11313"
             strokeWidth={2}
             fill="url(#paidFill)"
           />
