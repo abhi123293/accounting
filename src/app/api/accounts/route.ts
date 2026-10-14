@@ -1,0 +1,156 @@
+
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { adminAuth, adminDb } from "@/lib/firebase-admin";
+
+const ACCOUNT_TYPES = [
+  "asset",
+  "liability",
+  "equity",
+  "revenue",
+  "expense",
+] as const;
+
+type AccountType = (typeof ACCOUNT_TYPES)[number];
+
+async function verifyAdminSession() {
+  const cookieStore = await cookies();
+  const sessionCookie = cookieStore.get("session")?.value;
+
+  if (!sessionCookie) {
+    throw new Error("UNAUTHORIZED");
+  }
+
+  const decoded = await adminAuth.verifySessionCookie(
+    sessionCookie,
+    true
+  );
+
+  const adminUid = process.env.FIREBASE_ADMIN_UID;
+
+  if (!adminUid || decoded.uid !== adminUid) {
+    throw new Error("FORBIDDEN");
+  }
+
+  return decoded;
+}
+
+function errorResponse(error: unknown) {
+  if (error instanceof Error && error.message === "UNAUTHORIZED") {
+    return NextResponse.json(
+      { error: "Please sign in to continue." },
+      { status: 401 }
+    );
+  }
+
+  if (error instanceof Error && error.message === "FORBIDDEN") {
+    return NextResponse.json(
+      { error: "Administrator access required." },
+      { status: 403 }
+    );
+  }
+
+  console.error("Accounts API error:", error);
+
+  return NextResponse.json(
+    { error: "Unable to process accounts request." },
+    { status: 500 }
+  );
+}
+
+export async function GET() {
+  try {
+    await verifyAdminSession();
+
+    const snapshot = await adminDb.collection("accounts").get();
+
+    const accounts = snapshot.docs.map((document) => {
+      const data = document.data();
+
+      return {
+        id: document.id,
+        code: String(data.code ?? ""),
+        name: String(data.name ?? ""),
+        type: data.type as AccountType,
+        isActive: data.isActive !== false,
+      };
+    });
+
+    accounts.sort((a, b) => a.code.localeCompare(b.code));
+
+    return NextResponse.json({ accounts });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    await verifyAdminSession();
+
+    const body = await request.json();
+
+    const code =
+      typeof body.code === "string" ? body.code.trim() : "";
+    const name =
+      typeof body.name === "string" ? body.name.trim() : "";
+    const type = body.type as AccountType;
+
+    if (!code || !name || code.length > 30 || name.length > 150) {
+      return NextResponse.json(
+        { error: "Enter a valid account code and name." },
+        { status: 400 }
+      );
+    }
+
+    if (!ACCOUNT_TYPES.includes(type)) {
+      return NextResponse.json(
+        { error: "Select a valid account type." },
+        { status: 400 }
+      );
+    }
+
+    const accountsRef = adminDb.collection("accounts");
+
+    const account = await adminDb.runTransaction(async (transaction) => {
+      const existing = await transaction.get(
+        accountsRef.where("code", "==", code)
+      );
+
+      if (!existing.empty) {
+        throw new Error("DUPLICATE_ACCOUNT_CODE");
+      }
+
+      const documentRef = accountsRef.doc();
+
+      const newAccount = {
+        code,
+        name,
+        type,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+      };
+
+      transaction.set(documentRef, newAccount);
+
+      return {
+        id: documentRef.id,
+        ...newAccount,
+      };
+    });
+
+    return NextResponse.json({ account }, { status: 201 });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "DUPLICATE_ACCOUNT_CODE"
+    ) {
+      return NextResponse.json(
+        { error: "An account with this code already exists." },
+        { status: 409 }
+      );
+    }
+
+    return errorResponse(error);
+  }
+}

@@ -1,0 +1,204 @@
+
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { adminAuth, adminDb } from "@/lib/firebase-admin";
+
+const CONTACT_TYPES = ["customer", "vendor", "both"] as const;
+
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
+
+async function verifyAdmin() {
+  const cookieStore = await cookies();
+  const session = cookieStore.get("session")?.value;
+
+  if (!session) throw new Error("UNAUTHORIZED");
+
+  if (!adminAuth) {
+  throw new Error("FIREBASE_ADMIN_NOT_INITIALIZED");
+}
+
+const decoded = await adminAuth.verifySessionCookie(session, true);
+  const adminUid = process.env.FIREBASE_ADMIN_UID;
+
+  if (!adminUid || decoded.uid !== adminUid) {
+    throw new Error("FORBIDDEN");
+  }
+}
+
+function handleError(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+
+  if (message === "UNAUTHORIZED") {
+    return NextResponse.json(
+      { error: "Authentication required" },
+      { status: 401 }
+    );
+  }
+
+  if (message === "FORBIDDEN") {
+    return NextResponse.json(
+      { error: "Admin access required" },
+      { status: 403 }
+    );
+  }
+  if (message === "FIREBASE_ADMIN_NOT_INITIALIZED") {
+  return NextResponse.json(
+    { error: "Authentication service is not configured." },
+    { status: 500 }
+  );
+}
+if (message === "FIREBASE_DB_NOT_INITIALIZED") {
+  return NextResponse.json(
+    { error: "Database service is not configured." },
+    { status: 500 }
+  );
+}
+
+  console.error("Contact item API error:", error);
+
+  return NextResponse.json(
+    { error: "Unable to process contact request" },
+    { status: 500 }
+  );
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: RouteContext
+) {
+  try {
+    await verifyAdmin();
+    if (!adminDb) {
+  throw new Error("FIREBASE_DB_NOT_INITIALIZED");
+}
+
+    const { id } = await params;
+    const body = await request.json();
+
+    const name =
+      typeof body.name === "string" ? body.name.trim() : "";
+    const email =
+      typeof body.email === "string" ? body.email.trim() : "";
+    const phone =
+      typeof body.phone === "string" ? body.phone.trim() : "";
+    const type = body.type;
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Contact ID is required." },
+        { status: 400 }
+      );
+    }
+
+    if (!name || name.length > 150) {
+      return NextResponse.json(
+        { error: "Enter a valid contact name." },
+        { status: 400 }
+      );
+    }
+
+    if (email.length > 254) {
+      return NextResponse.json(
+        { error: "Email address is too long." },
+        { status: 400 }
+      );
+    }
+
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  return NextResponse.json(
+    { error: "Enter a valid email address." },
+    { status: 400 }
+  );
+}
+
+    if (phone && !/^[6-9]\d{9}$/.test(phone)) {
+      return NextResponse.json(
+        { error: "Enter a valid 10-digit Indian mobile number." },
+        { status: 400 }
+      );
+    }
+
+    if (
+      !CONTACT_TYPES.includes(
+        type as (typeof CONTACT_TYPES)[number]
+      )
+    ) {
+      return NextResponse.json(
+        { error: "Choose a valid contact type." },
+        { status: 400 }
+      );
+    }
+
+    const contactRef = adminDb.collection("contacts").doc(id);
+    const contactDoc = await contactRef.get();
+
+    if (!contactDoc.exists) {
+      return NextResponse.json(
+        { error: "Contact not found." },
+        { status: 404 }
+      );
+    }
+
+    await contactRef.update({
+      name,
+      email,
+      phone,
+      type,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return NextResponse.json({
+      contact: {
+        id,
+        name,
+        email,
+        phone,
+        type,
+      },
+    });
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: RouteContext
+) {
+  try {
+    await verifyAdmin();
+
+    if (!adminDb) {
+      throw new Error("FIREBASE_DB_NOT_INITIALIZED");
+    }
+
+    const { id } = await params;
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Contact ID is required." },
+        { status: 400 }
+      );
+    }
+
+    const contactRef = adminDb.collection("contacts").doc(id);
+    const contactDoc = await contactRef.get();
+
+    if (!contactDoc.exists) {
+      return NextResponse.json(
+        { error: "Contact not found." },
+        { status: 404 }
+      );
+    }
+
+    await contactRef.delete();
+
+    return NextResponse.json({
+      message: "Contact deleted successfully.",
+    });
+  } catch (error) {
+    return handleError(error);
+  }
+}
