@@ -7,8 +7,6 @@ import {
   FileText,
   ArrowUpRight,
   ArrowDownRight,
-  Table,
-  Clock,
 } from "lucide-react";
 import Link from "next/link";
 import Sidebar from "@/components/layout/Sidebar";
@@ -42,14 +40,6 @@ const stats = [
     note: "Unpaid customer invoices",
     icon: FileText,
   },
-];
-
-const recentTransactions = [
-  { id: "TXN-001", date: "2024-01-15", description: "Invoice payment from Acme Corp", type: "received", amount: "₹ 45,000" },
-  { id: "TXN-002", date: "2024-01-14", description: "Office rent payment", type: "paid", amount: "₹ 25,000" },
-  { id: "TXN-003", date: "2024-01-13", description: "Invoice payment from TechStart Inc", type: "received", amount: "₹ 78,500" },
-  { id: "TXN-004", date: "2024-01-12", description: "Software subscription renewal", type: "paid", amount: "₹ 12,000" },
-  { id: "TXN-005", date: "2024-01-11", description: "Invoice payment from Global Ltd", type: "received", amount: "₹ 92,300" },
 ];
 
 export default function DashboardPage() {
@@ -110,8 +100,8 @@ export default function DashboardPage() {
             })}
           </section>
 
-          <section className="grid gap-6 xl:grid-cols-3 mb-12">
-            <article className="rounded-xl border border-border bg-card p-6 xl:col-span-2">
+          <section className="mb-12">
+            <article className="rounded-xl border border-border bg-card p-6">
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h2 className="text-lg font-medium text-foreground">Cash Flow Overview</h2>
@@ -123,52 +113,6 @@ export default function DashboardPage() {
                 <p className="mt-3 text-xs text-muted-foreground">
                   Illustrative sample data — not actual business cash flow.
                 </p>
-              </div>
-            </article>
-
-            <article className="rounded-xl border border-border bg-card p-6">
-              <h2 className="text-lg font-medium text-foreground">Recent Transactions</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Latest financial activity</p>
-
-              <div className="mt-6">
-                <div className="rounded-lg border border-border overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-muted/50 border-b border-border">
-                        <th className="px-4 py-3 text-left font-medium text-foreground">Transaction</th>
-                        <th className="px-4 py-3 text-right font-medium text-foreground">Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {recentTransactions.map((txn) => (
-                        <tr key={txn.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                          <td className="px-4 py-3">
-                            <div className="font-medium text-foreground">{txn.description}</div>
-                            <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
-                              <span>{txn.date}</span>
-                              <span>•</span>
-                              <span className={cn("px-1.5 py-0.5 rounded text-xs", txn.type === "received" ? "bg-green-500/10 text-green-700" : "bg-red-500/10 text-red-700")}>
-                                {txn.type === "received" ? "Received" : "Paid"}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-right font-medium text-foreground">
-                            {txn.type === "received" ? (
-                              <span className="text-green-700">+ {txn.amount}</span>
-                            ) : (
-                              <span className="text-red-700">- {txn.amount}</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="mt-4 text-center">
-                  <Link href="/ledger" className="text-sm font-medium text-primary hover:underline">
-                    View all transactions →
-                  </Link>
-                </div>
               </div>
             </article>
           </section>
