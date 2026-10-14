@@ -8,17 +8,29 @@ import {
 } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-import serviceAccount from "../../firebase-service-account.json";
 
-const app = getApps().length
-  ? getApp()
-  : initializeApp({
-      credential: cert({
-  projectId: serviceAccount.project_id,
-  clientEmail: serviceAccount.client_email,
-  privateKey: serviceAccount.private_key,
-}),
-    });
+let adminAuth: ReturnType<typeof getAuth> | null = null;
+let adminDb: ReturnType<typeof getFirestore> | null = null;
 
-export const adminAuth = getAuth(app);
-export const adminDb = getFirestore(app);
+try {
+  const serviceAccount = {
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+  };
+
+  if (serviceAccount.projectId && serviceAccount.clientEmail && serviceAccount.privateKey) {
+    const app = getApps().length
+      ? getApp()
+      : initializeApp({
+          credential: cert(serviceAccount),
+        });
+
+    adminAuth = getAuth(app);
+    adminDb = getFirestore(app);
+  }
+} catch (error) {
+  console.warn("Firebase Admin SDK initialization failed:", error);
+}
+
+export { adminAuth, adminDb };
