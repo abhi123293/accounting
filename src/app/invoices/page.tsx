@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import {
   Plus,
   Search,
-  FileText,
   Loader2,
   Receipt,
 } from "lucide-react";
@@ -35,6 +34,8 @@ type Invoice = {
   tax?: number;
   total?: number;
   status?: string;
+  amountPaid: number;
+balanceDue: number;
 };
 
 export default function InvoicesPage() {
@@ -43,7 +44,17 @@ export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+const [actionLoading, setActionLoading] = useState("");
   const [error, setError] = useState("");
+
+  const [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null);
+const [paymentAmount, setPaymentAmount] = useState("");
+const [paymentDate, setPaymentDate] = useState(
+  new Date().toISOString().slice(0, 10)
+);
+const [paymentMethod, setPaymentMethod] = useState("upi");
+const [paymentReference, setPaymentReference] = useState("");
 
   useEffect(() => {
     if (authLoading) return;
@@ -57,7 +68,11 @@ export default function InvoicesPage() {
           throw new Error("Invoices API is not available yet.");
         }
 
-        const data = await response.json();
+
+
+
+
+const data = await response.json();
 
         if (!response.ok) {
           throw new Error(data.error || "Unable to load invoices.");
@@ -80,14 +95,37 @@ export default function InvoicesPage() {
 
   
 
-  const filteredInvoices = invoices.filter((invoice) => {
-    const query = search.toLowerCase();
 
-    return (
-      (invoice.invoiceNumber ?? "").toLowerCase().includes(query) ||
-      (invoice.customerName ?? "").toLowerCase().includes(query)
-    );
-  });
+const today = new Date();
+today.setHours(0, 0, 0, 0);
+
+const filteredInvoices = invoices.filter((invoice) => {
+  const query = search.toLowerCase();
+  const status = (invoice.status ?? "draft").toLowerCase();
+
+  const matchesSearch =
+    (invoice.invoiceNumber ?? "").toLowerCase().includes(query) ||
+    (invoice.customerName ?? "").toLowerCase().includes(query);
+
+  const dueDate = invoice.dueDate
+    ? new Date(`${invoice.dueDate}T00:00:00`)
+    : null;
+
+  const effectiveStatus =
+    status === "sent" &&
+    dueDate &&
+    !Number.isNaN(dueDate.getTime()) &&
+    dueDate < today
+      ? "overdue"
+      : status;
+
+  const matchesStatus =
+    statusFilter === "all" ||
+    effectiveStatus === statusFilter;
+
+  return matchesSearch && matchesStatus;
+});
+
 
   const handleDownloadPDF = (invoice: Invoice) => {
   if (
@@ -116,6 +154,120 @@ export default function InvoicesPage() {
     setError("Unable to generate the invoice PDF.");
   }
 };
+
+
+
+const handleIssueInvoice = async (invoice: Invoice) => {
+  const confirmed = window.confirm(
+    `Issue invoice ${invoice.invoiceNumber}?`
+  );
+
+  if (!confirmed) return;
+
+  setActionLoading(invoice.id);
+  setError("");
+
+  try {
+    const response = await fetch(`/api/invoices/${invoice.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "sent" }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Unable to issue invoice.");
+    }
+
+    setInvoices((current) =>
+      current.map((item) =>
+        item.id === invoice.id
+          ? { ...item, status: "sent" }
+          : item
+      )
+    );
+  } catch (err) {
+    setError(
+      err instanceof Error ? err.message : "Unable to issue invoice."
+    );
+  } finally {
+    setActionLoading("");
+  }
+};
+
+
+
+const handleRecordPayment = async (event: React.FormEvent<HTMLFormElement>) => {
+  event.preventDefault();
+
+  if (!paymentInvoice) return;
+
+  const amount = Number(paymentAmount);
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    setError("Enter a valid payment amount.");
+    return;
+  }
+
+  setActionLoading(paymentInvoice.id);
+  setError("");
+
+  try {
+    const response = await fetch(
+      `/api/invoices/${paymentInvoice.id}/payments`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount,
+          paymentDate,
+          method: paymentMethod,
+          reference: paymentReference,
+        }),
+      }
+    );
+
+    const contentType = response.headers.get("content-type");
+
+if (!contentType?.includes("application/json")) {
+  throw new Error(
+    `Payment API returned HTML instead of JSON (HTTP ${response.status}). Check the API route path.`
+  );
+}
+
+const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Unable to record payment.");
+    }
+
+    setInvoices((current) =>
+      current.map((invoice) =>
+        invoice.id === paymentInvoice.id
+          ? {
+              ...invoice,
+              amountPaid: data.amountPaid,
+              balanceDue: data.balanceDue,
+              status: data.status,
+            }
+          : invoice
+      )
+    );
+
+    setPaymentInvoice(null);
+    setPaymentAmount("");
+    setPaymentReference("");
+  } catch (err) {
+    setError(
+      err instanceof Error ? err.message : "Unable to record payment."
+    );
+  } finally {
+    setActionLoading("");
+  }
+};
+
+
 
   if (authLoading) {
     return (
@@ -182,6 +334,20 @@ export default function InvoicesPage() {
                   aria-label="Search invoices"
                 />
               </div>
+              
+<select
+  value={statusFilter}
+  onChange={(event) => setStatusFilter(event.target.value)}
+  aria-label="Filter invoices by status"
+  className="h-10 rounded-md border border-border bg-background px-3 text-sm"
+>
+  <option value="all">All statuses</option>
+  <option value="draft">Draft</option>
+  <option value="sent">Unpaid</option>
+  <option value="paid">Paid</option>
+  <option value="overdue">Overdue</option>
+</select>
+
             </div>
 
             {loading ? (
@@ -195,15 +361,17 @@ export default function InvoicesPage() {
                   <Receipt className="h-7 w-7 text-muted-foreground" />
                 </div>
 
-                <h3 className="font-semibold">
-                  {search ? "No matching invoices" : "No invoices yet"}
-                </h3>
+<h3 className="font-semibold">
+  {invoices.length === 0
+    ? "No invoices yet"
+    : "No matching invoices"}
+</h3>
 
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {search
-                    ? "Try another invoice number or customer name."
-                    : "Create your first invoice to get started."}
-                </p>
+<p className="mt-1 text-sm text-muted-foreground">
+  {invoices.length === 0
+    ? "Create your first invoice to get started."
+    : "Try another search term or select a different status filter."}
+</p>
 
                 {!search && (
                   <Button
@@ -269,6 +437,43 @@ export default function InvoicesPage() {
     <Download className="mr-2 h-4 w-4" />
     Download PDF
   </Button>
+  
+{(invoice.status ?? "draft").toLowerCase() === "draft" && (
+  <Button
+    type="button"
+    size="sm"
+    className="ml-2 whitespace-nowrap"
+    disabled={actionLoading === invoice.id}
+    onClick={() => handleIssueInvoice(invoice)}
+  >
+    {actionLoading === invoice.id ? (
+      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+    ) : null}
+    Issue Invoice
+  </Button>
+)}
+
+{["sent", "partially_paid", "overdue"].includes(
+  (invoice.status ?? "").toLowerCase()
+) && (
+  <Button
+    type="button"
+    size="sm"
+    variant="outline"
+    className="ml-2 whitespace-nowrap"
+    onClick={() => {
+      setPaymentInvoice(invoice);
+      setPaymentAmount(String(invoice.balanceDue));
+      setPaymentDate(new Date().toISOString().slice(0, 10));
+      setPaymentMethod("upi");
+      setPaymentReference("");
+      setError("");
+    }}
+  >
+    Record Payment
+  </Button>
+)}
+
 </td>
                       </tr>
                     ))}
@@ -277,6 +482,95 @@ export default function InvoicesPage() {
               </div>
             )}
           </section>
+      
+{paymentInvoice && (
+  <section className="rounded-xl border bg-card p-5 shadow-sm">
+    <h2 className="text-lg font-semibold">Record Payment</h2>
+    <p className="mt-1 text-sm text-muted-foreground">
+      Invoice: {paymentInvoice.invoiceNumber}
+    </p>
+    <p className="mt-1 text-sm">
+      Remaining balance:{" "}
+      {new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+      }).format(paymentInvoice.balanceDue)}
+    </p>
+
+    <form onSubmit={handleRecordPayment} className="mt-4 space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1">
+          <label className="text-sm font-medium">Payment Amount (₹)</label>
+          <Input
+            type="number"
+            min="0.01"
+            max={paymentInvoice.balanceDue}
+            step="0.01"
+            required
+            value={paymentAmount}
+            onChange={(event) => setPaymentAmount(event.target.value)}
+            placeholder="Enter amount"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-sm font-medium">Payment Date</label>
+          <Input
+            type="date"
+            required
+            value={paymentDate}
+            onChange={(event) => setPaymentDate(event.target.value)}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-sm font-medium">Payment Method</label>
+          <select
+            value={paymentMethod}
+            onChange={(event) => setPaymentMethod(event.target.value)}
+            className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
+          >
+            <option value="upi">UPI</option>
+            <option value="cash">Cash</option>
+            <option value="bank_transfer">Bank Transfer</option>
+            <option value="card">Card</option>
+            <option value="cheque">Cheque</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-sm font-medium">
+            Reference (Optional)
+          </label>
+          <Input
+            value={paymentReference}
+            onChange={(event) => setPaymentReference(event.target.value)}
+            placeholder="Transaction ID or reference"
+          />
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <Button type="submit" disabled={actionLoading === paymentInvoice.id}>
+          {actionLoading === paymentInvoice.id && (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          )}
+          Save Payment
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setPaymentInvoice(null)}
+        >
+          Cancel
+        </Button>
+      </div>
+    </form>
+  </section>
+)}
+
         </div>
       </main>
     </div>
@@ -299,7 +593,9 @@ function InvoiceStatus({ status }: { status?: string }) {
         styles[value] ?? "bg-muted text-muted-foreground"
       }`}
     >
-      {value.charAt(0).toUpperCase() + value.slice(1)}
+      {value === "sent"
+  ? "Unpaid"
+  : value.charAt(0).toUpperCase() + value.slice(1)}
     </span>
   );
 }

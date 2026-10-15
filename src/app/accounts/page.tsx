@@ -348,7 +348,7 @@ async function handleDeleteAccount(account: Account) {
           </section>
 
           {error && (
-            <p role="alert" className="rounded-lg border border-destructive/40 p-3 text-sm text-destructive">
+            <p role="alert" className="rounded-lg border border-red-500/40 bg-red-50 p-3 text-sm text-red-600 dark:bg-red-950/30 dark:text-red-400">
               {error}
             </p>
           )}

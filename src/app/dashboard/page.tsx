@@ -66,6 +66,25 @@ type DashboardEntry = {
   date?: string;
   createdAt?: string;
   status?: string;
+  lines?: {
+    accountId: string;
+    debit: number;
+    credit: number;
+  }[];
+};
+
+type DashboardAccount = {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+  isActive: boolean;
+};
+
+type CashFlowPoint = {
+  month: string;
+  received: number;
+  paid: number;
 };
 
 
@@ -90,6 +109,11 @@ const [recentActivity, setRecentActivity] =
   useState<RecentItem[]>([]);
 const [dataLoading, setDataLoading] = useState(true);
 const [dataError, setDataError] = useState("");
+
+const [cashFlowData, setCashFlowData] =
+  useState<
+    { month: string; received: number; paid: number }[]
+  >([]);
 
 
   const invalidDateRange =
@@ -162,10 +186,13 @@ const entries: DashboardEntry[] = Array.isArray(
   ? (ledgerData.entries as DashboardEntry[])
   : [];
 
-  console.log(
-  "Dashboard journal entries:",
-  JSON.stringify(entries, null, 2)
-);
+
+  console.log("Ledger data:", ledgerData);
+
+//   console.log(
+//   "Dashboard journal entries:",
+//   JSON.stringify(entries, null, 2)
+// );
 
 const accountsResponse = await fetch("/api/accounts", {
   cache: "no-store",
@@ -173,10 +200,91 @@ const accountsResponse = await fetch("/api/accounts", {
 
 const accountsData = await accountsResponse.json();
 
-console.log(
-  "Dashboard accounts:",
-  JSON.stringify(accountsData.accounts, null, 2)
+if (!accountsResponse.ok) {
+  throw new Error(
+    accountsData.error || "Unable to load accounts."
+  );
+}
+
+const accounts: DashboardAccount[] = Array.isArray(
+  accountsData.accounts
+)
+  ? accountsData.accounts
+  : [];
+
+  
+
+const cashAccounts = accounts.filter(
+  (account) =>
+    account.isActive &&
+    account.type.toLowerCase() === "asset"
 );
+
+
+console.log("Cash accounts:", cashAccounts);
+
+const monthlyCashFlow = new Map<
+  string,
+  { month: string; received: number; paid: number }
+>();
+
+const start = new Date(`${dateRange!.startDate}T00:00:00`);
+const end = new Date(`${dateRange!.endDate}T00:00:00`);
+
+const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+const lastMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+
+while (cursor <= lastMonth) {
+  const key = `${cursor.getFullYear()}-${String(
+    cursor.getMonth() + 1
+  ).padStart(2, "0")}`;
+
+  monthlyCashFlow.set(key, {
+    month: cursor.toLocaleDateString("en-IN", {
+      month: "short",
+      year: "2-digit",
+    }),
+    received: 0,
+    paid: 0,
+  });
+
+  cursor.setMonth(cursor.getMonth() + 1);
+}
+
+
+for (const entry of entries) {
+
+  console.log("Checking entry:", {
+  description: entry.description,
+  status: entry.status,
+  date: entry.date,
+  lines: entry.lines,
+});
+  if (entry.status !== "posted" || !entry.date) continue;
+
+  if (
+    entry.date < dateRange!.startDate ||
+    entry.date > dateRange!.endDate
+  ) {
+    continue;
+  }
+
+  const monthKey = entry.date.slice(0, 7);
+  const point = monthlyCashFlow.get(monthKey);
+  if (!point) continue;
+
+  for (const line of entry.lines ?? []) {
+    if (!cashAccounts.some((account) => account.id === line.accountId)) {
+      continue;
+    }
+
+    point.received += Math.max(0, Number(line.debit) || 0);
+    point.paid += Math.max(0, Number(line.credit) || 0);
+  }
+}
+
+const calculatedCashFlow = Array.from(monthlyCashFlow.values());
+
 
 
       const outstandingInvoices = invoices
@@ -219,7 +327,10 @@ console.log(
           outstandingInvoices,
         });
 
-        setRecentActivity(activity);
+        
+setRecentActivity(activity);
+setCashFlowData(calculatedCashFlow);
+
       }
     } catch (error) {
       if (!cancelled) {
@@ -451,7 +562,7 @@ console.log(
                 </p>
 
                 <div className="mt-6">
-                  <CashFlowChart />
+                  <CashFlowChart data={cashFlowData} />
 
                   <p className="mt-3 text-xs text-muted-foreground">
                     Illustrative sample data — not actual business cash flow.
