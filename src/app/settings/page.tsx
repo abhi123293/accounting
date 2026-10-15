@@ -20,11 +20,13 @@ import {
   Upload,
   Download,
   Settings,
+  Image as ImageIcon,
+  X,
 } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
-import { useRequireAuth } from "@/lib/auth-context";
-import { useState } from "react";
+import { useRequireAuth, useAuth } from "@/lib/auth-context";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,11 +42,16 @@ import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "cn";
+import { updateProfile } from "firebase/auth";
 
 export default function SettingsPage() {
+  const { user } = useAuth();
   useRequireAuth();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSave = async () => {
     setSaving(true);
@@ -52,6 +59,71 @@ export default function SettingsPage() {
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
+  };
+
+  const handleAvatarChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please select an image file");
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      alert("File size must be less than 2MB");
+      return;
+    }
+
+    setAvatarUploading(true);
+    try {
+      const userId = user?.uid;
+      if (!userId) throw new Error("User not authenticated");
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("userId", userId);
+
+      const response = await fetch("/api/upload-avatar", {
+        method: "POST",
+        body: formData,
+      });
+
+      const text = await response.text();
+      console.log('Upload raw response status:', response.status, 'headers:', Object.fromEntries(response.headers.entries()));
+      console.log('Upload raw response body:', text.substring(0, 500));
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { error: text };
+      }
+      console.log('Parsed data:', data);
+      if (!response.ok) {
+        console.error('Upload failed with:', data);
+        throw new Error(data.error || "Upload failed");
+      }
+
+      const downloadURL = data.downloadURL;
+
+      // Update user profile in Firebase Auth
+      await updateProfile(user!, { photoURL: downloadURL });
+
+      setAvatarPreview(downloadURL);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+      // Force refresh user profile
+      if (user) {
+        const newUser = { ...user, photoURL: downloadURL };
+        // Trigger auth context update by updating the user state
+        window.dispatchEvent(new CustomEvent('auth-update', { detail: newUser }));
+      }
+    } catch (error) {
+      console.error("Avatar upload failed:", error);
+      alert("Failed to upload avatar");
+    } finally {
+      setAvatarUploading(false);
+    }
   };
 
   return (
@@ -95,32 +167,56 @@ export default function SettingsPage() {
                   <CardTitle>Profile Information</CardTitle>
                   <CardDescription>Manage your personal information and avatar</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+<CardContent className="space-y-4">
                   <div className="flex items-center gap-6">
-                    <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center">
-                      <User className="h-10 w-10 text-primary" />
+                    <div className="relative h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
+                      {(avatarPreview || user?.photoURL) && (
+                        <img
+                          src={(avatarPreview || user?.photoURL!).includes('firebasestorage.googleapis.com')
+                            ? `/api/avatar?path=${encodeURIComponent(decodeURIComponent((avatarPreview || user?.photoURL!).split('/o/')[1]?.split('?')[0] || ''))}`
+                            : avatarPreview || user?.photoURL!}
+                          alt="Avatar"
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            console.error("Avatar image failed to load:", e.currentTarget.src);
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      )}
                     </div>
-                    <div>
-                      <Button variant="outline" className="gap-2">
+                    <div className="flex flex-col items-start gap-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarChange}
+                        className="sr-only"
+                        disabled={avatarUploading}
+                      />
+                      <div
+                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium cursor-pointer hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        onClick={() => fileInputRef.current?.click()}
+                        style={{ pointerEvents: avatarUploading ? 'none' : 'auto' }}
+                      >
                         <Upload className="h-4 w-4" />
                         Change Avatar
-                      </Button>
-                      <p className="mt-2 text-sm text-muted-foreground">JPG, PNG up to 2MB</p>
+                      </div>
+                      <p className="text-sm text-muted-foreground">JPG, PNG up to 2MB</p>
                     </div>
                   </div>
                   <Separator />
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="firstName">First Name</Label>
-                      <Input id="firstName" defaultValue="John" />
+                      <Input id="firstName" defaultValue={user?.displayName?.split(" ")[0] || "John"} />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="lastName">Last Name</Label>
-                      <Input id="lastName" defaultValue="Doe" />
+                      <Input id="lastName" defaultValue={user?.displayName?.split(" ").slice(1).join(" ") || "Doe"} />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="email">Email</Label>
-                      <Input id="email" type="email" defaultValue="john@company.com" />
+                      <Input id="email" type="email" defaultValue={user?.email || "john@company.com"} disabled />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="phone">Phone</Label>

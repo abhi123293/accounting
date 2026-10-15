@@ -6,13 +6,18 @@ import { adminAuth, adminDb } from "@/lib/firebase-admin";
 const ACCOUNT_TYPES = ["asset","liability","equity","revenue","expense",];
 
 async function verifyAdmin() {
+  if (!adminAuth) {
+    throw new Error("ADMIN_NOT_CONFIGURED");
+  }
+
   const cookieStore = await cookies();
-  const session = cookieStore.get("session")?.value;
+  const session = cookieStore.get("__session")?.value;
 
   if (!session) {
     throw new Error("UNAUTHORIZED");
   }
 
+  // Verify as session cookie (created by /api/auth/session)
   const decoded = await adminAuth.verifySessionCookie(session, true);
 
   if (
@@ -50,6 +55,13 @@ export async function GET() {
   try {
     await verifyAdmin();
 
+    if (!adminDb) {
+      return NextResponse.json(
+        { error: "Firebase Admin not configured." },
+        { status: 503 }
+      );
+    }
+
     const snapshot = await adminDb
       .collection("transactions")
       .orderBy("createdAt", "desc")
@@ -70,6 +82,13 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     await verifyAdmin();
+
+    if (!adminDb) {
+      return NextResponse.json(
+        { error: "Firebase Admin not configured." },
+        { status: 503 }
+      );
+    }
 
     const body = await request.json();
     const date = typeof body.date === "string" ? body.date : "";

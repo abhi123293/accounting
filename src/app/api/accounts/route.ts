@@ -14,13 +14,18 @@ const ACCOUNT_TYPES = [
 type AccountType = (typeof ACCOUNT_TYPES)[number];
 
 async function verifyAdminSession() {
+  if (!adminAuth) {
+    throw new Error("ADMIN_NOT_CONFIGURED");
+  }
+
   const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get("session")?.value;
+  const sessionCookie = cookieStore.get("__session")?.value;
 
   if (!sessionCookie) {
     throw new Error("UNAUTHORIZED");
   }
 
+  // Verify as session cookie (created by /api/auth/session)
   const decoded = await adminAuth.verifySessionCookie(
     sessionCookie,
     true
@@ -62,6 +67,13 @@ export async function GET() {
   try {
     await verifyAdminSession();
 
+    if (!adminDb) {
+      return NextResponse.json(
+        { error: "Firebase Admin not configured." },
+        { status: 503 }
+      );
+    }
+
     const snapshot = await adminDb.collection("accounts").get();
 
     const accounts = snapshot.docs.map((document) => {
@@ -87,6 +99,13 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     await verifyAdminSession();
+
+    if (!adminDb) {
+      return NextResponse.json(
+        { error: "Firebase Admin not configured." },
+        { status: 503 }
+      );
+    }
 
     const body = await request.json();
 

@@ -6,11 +6,16 @@ import { adminAuth, adminDb } from "@/lib/firebase-admin";
 const CONTACT_TYPES = ["customer", "vendor", "both"] as const;
 
 async function verifyAdmin() {
+  if (!adminAuth) {
+    throw new Error("ADMIN_NOT_CONFIGURED");
+  }
+
   const cookieStore = await cookies();
-  const session = cookieStore.get("session")?.value;
+  const session = cookieStore.get("__session")?.value;
 
   if (!session) throw new Error("UNAUTHORIZED");
 
+  // Verify as session cookie (created by /api/auth/session)
   const decoded = await adminAuth.verifySessionCookie(session, true);
   const adminUid = process.env.FIREBASE_ADMIN_UID;
 
@@ -48,6 +53,13 @@ export async function GET() {
   try {
     await verifyAdmin();
 
+    if (!adminDb) {
+      return NextResponse.json(
+        { error: "Firebase Admin not configured." },
+        { status: 503 }
+      );
+    }
+
     const snapshot = await adminDb.collection("contacts").get();
 
     const contacts = snapshot.docs.map((doc) => {
@@ -74,6 +86,13 @@ export async function POST(request: Request) {
   try {
     await verifyAdmin();
 
+    if (!adminDb) {
+      return NextResponse.json(
+        { error: "Firebase Admin not configured." },
+        { status: 503 }
+      );
+    }
+
     const body = await request.json();
 
     const name =
@@ -98,21 +117,21 @@ export async function POST(request: Request) {
       );
     }
 
-   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-  return NextResponse.json(
-    { error: "Enter a valid email address." },
-    { status: 400 }
-  );
-}
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json(
+        { error: "Enter a valid email address." },
+        { status: 400 }
+      );
+    }
 
-if (phone && !/^[6-9]\d{9}$/.test(phone)) {
-  return NextResponse.json(
-    {
-      error: "Enter a valid 10-digit Indian mobile number.",
-    },
-    { status: 400 }
-  );
-}
+    if (phone && !/^[6-9]\d{9}$/.test(phone)) {
+      return NextResponse.json(
+        {
+          error: "Enter a valid 10-digit Indian mobile number.",
+        },
+        { status: 400 }
+      );
+    }
 
     if (
       !CONTACT_TYPES.includes(

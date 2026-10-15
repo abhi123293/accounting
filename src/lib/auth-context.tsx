@@ -90,7 +90,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   });
 
-  return () => unsubscribe();
+  // Listen for profile updates
+  const handleAuthUpdate = (event: CustomEvent) => {
+    setUser(event.detail);
+  };
+  window.addEventListener('auth-update', handleAuthUpdate as EventListener);
+  return () => {
+    unsubscribe();
+    window.removeEventListener('auth-update', handleAuthUpdate as EventListener);
+  };
 }, []);
 
   const signIn = async (email: string, password: string) => {

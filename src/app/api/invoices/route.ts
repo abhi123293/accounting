@@ -4,11 +4,16 @@ import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 
 async function verifyAdmin() {
+  if (!adminAuth) {
+    throw new Error("ADMIN_NOT_CONFIGURED");
+  }
+
   const cookieStore = await cookies();
-  const session = cookieStore.get("session")?.value;
+  const session = cookieStore.get("__session")?.value;
 
   if (!session) throw new Error("UNAUTHORIZED");
 
+  // Verify as session cookie (created by /api/auth/session)
   const decoded = await adminAuth.verifySessionCookie(session, true);
   const adminUid = process.env.FIREBASE_ADMIN_UID;
 
@@ -46,6 +51,13 @@ export async function GET() {
   try {
     await verifyAdmin();
 
+    if (!adminDb) {
+      return NextResponse.json(
+        { error: "Firebase Admin not configured." },
+        { status: 503 }
+      );
+    }
+
     const snapshot = await adminDb.collection("invoices").get();
 
     const invoices = snapshot.docs.map((doc) => {
@@ -58,11 +70,11 @@ export async function GET() {
         customerName: String(data.customerName ?? ""),
         issueDate: String(data.issueDate ?? ""),
         dueDate: String(data.dueDate ?? ""),
-       items: Array.isArray(data.items) ? data.items : [],
-subtotal: Number(data.subtotal ?? 0),
-taxRate: Number(data.taxRate ?? 0),
-tax: Number(data.tax ?? 0),
-total: Number(data.total ?? 0),
+        items: Array.isArray(data.items) ? data.items : [],
+        subtotal: Number(data.subtotal ?? 0),
+        taxRate: Number(data.taxRate ?? 0),
+        tax: Number(data.tax ?? 0),
+        total: Number(data.total ?? 0),
         status: String(data.status ?? "draft"),
       };
     });
@@ -80,6 +92,13 @@ total: Number(data.total ?? 0),
 export async function POST(request: Request) {
   try {
     await verifyAdmin();
+
+    if (!adminDb) {
+      return NextResponse.json(
+        { error: "Firebase Admin not configured." },
+        { status: 503 }
+      );
+    }
 
     const body = await request.json();
 

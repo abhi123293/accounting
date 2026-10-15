@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
@@ -10,16 +9,16 @@ type RouteContext = {
 };
 
 async function verifyAdmin() {
+  if (!adminAuth) {
+    throw new Error("FIREBASE_ADMIN_NOT_INITIALIZED");
+  }
+
   const cookieStore = await cookies();
-  const session = cookieStore.get("session")?.value;
+  const session = cookieStore.get("__session")?.value;
 
   if (!session) throw new Error("UNAUTHORIZED");
 
-  if (!adminAuth) {
-  throw new Error("FIREBASE_ADMIN_NOT_INITIALIZED");
-}
-
-const decoded = await adminAuth.verifySessionCookie(session, true);
+  const decoded = await adminAuth.verifySessionCookie(session, true);
   const adminUid = process.env.FIREBASE_ADMIN_UID;
 
   if (!adminUid || decoded.uid !== adminUid) {
@@ -43,18 +42,20 @@ function handleError(error: unknown) {
       { status: 403 }
     );
   }
+
   if (message === "FIREBASE_ADMIN_NOT_INITIALIZED") {
-  return NextResponse.json(
-    { error: "Authentication service is not configured." },
-    { status: 500 }
-  );
-}
-if (message === "FIREBASE_DB_NOT_INITIALIZED") {
-  return NextResponse.json(
-    { error: "Database service is not configured." },
-    { status: 500 }
-  );
-}
+    return NextResponse.json(
+      { error: "Authentication service is not configured." },
+      { status: 503 }
+    );
+  }
+
+  if (message === "FIREBASE_DB_NOT_INITIALIZED") {
+    return NextResponse.json(
+      { error: "Database service is not configured." },
+      { status: 503 }
+    );
+  }
 
   console.error("Contact item API error:", error);
 
@@ -70,9 +71,10 @@ export async function PATCH(
 ) {
   try {
     await verifyAdmin();
+
     if (!adminDb) {
-  throw new Error("FIREBASE_DB_NOT_INITIALIZED");
-}
+      throw new Error("FIREBASE_DB_NOT_INITIALIZED");
+    }
 
     const { id } = await params;
     const body = await request.json();
@@ -106,12 +108,12 @@ export async function PATCH(
       );
     }
 
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-  return NextResponse.json(
-    { error: "Enter a valid email address." },
-    { status: 400 }
-  );
-}
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json(
+        { error: "Enter a valid email address." },
+        { status: 400 }
+      );
+    }
 
     if (phone && !/^[6-9]\d{9}$/.test(phone)) {
       return NextResponse.json(
