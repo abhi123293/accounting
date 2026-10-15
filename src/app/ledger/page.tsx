@@ -58,9 +58,9 @@ export default function LedgerPage() {
   const [description, setDescription] = useState("");
   const [lines, setLines] = useState<JournalLine[]>([
     newLine(1),
-    newLine(2),
+    
   ]);
-  const [nextId, setNextId] = useState(3);
+  const [nextId, setNextId] = useState(2);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -125,19 +125,42 @@ export default function LedgerPage() {
     }
   }, [authLoading, user, loadData]);
 
-  function updateLine(
-    id: number,
-    field: "accountId" | "debit" | "credit",
-    value: string
-  ) {
-    setLines((previous) =>
-      previous.map((line) =>
-        line.id === id ? { ...line, [field]: value } : line
-      )
-    );
-    setError("");
-    setMessage("");
-  }
+
+function updateLine(
+  id: number,
+  field: "accountId" | "debit" | "credit",
+  value: string
+) {
+  setLines((previous) =>
+    previous.map((line) => {
+      if (line.id !== id) return line;
+
+      if (field === "debit") {
+        return {
+          ...line,
+          debit: value,
+          credit: "",
+        };
+      }
+
+      if (field === "credit") {
+        return {
+          ...line,
+          credit: value,
+          debit: "",
+        };
+      }
+
+      return {
+        ...line,
+        accountId: value,
+      };
+    })
+  );
+
+  setError("");
+  setMessage("");
+}
 
   function addLine() {
     setLines((previous) => [...previous, newLine(nextId)]);
@@ -215,8 +238,8 @@ export default function LedgerPage() {
 
       setMessage("Journal entry saved successfully.");
       setDescription("");
-      setLines([newLine(nextId), newLine(nextId + 1)]);
-      setNextId((previous) => previous + 2);
+      setLines([newLine(nextId)]);
+setNextId((previous) => previous + 1);
 
       await loadData();
     } catch (err) {
@@ -395,7 +418,7 @@ export default function LedgerPage() {
                         variant="ghost"
                         size="icon"
                         aria-label={`Remove line ${index + 1}`}
-                        disabled={lines.length <= 2}
+                        disabled={lines.length <= 1}
                         onClick={() => removeLine(line.id)}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -431,14 +454,22 @@ export default function LedgerPage() {
                   : "Total debits must equal total credits."}
               </p>
 
-              <div className="flex justify-end">
-                <Button
-                  type="submit"
-                  disabled={saving || loading || accounts.length === 0}
-                >
-                  {saving ? "Saving..." : "Save Journal Entry"}
-                </Button>
-              </div>
+            
+<div className="flex justify-end">
+  <Button
+    type="submit"
+    disabled={
+      saving ||
+      loading ||
+      accounts.length === 0 ||
+      lines.length < 2 ||
+      !balanced
+    }
+  >
+    {saving ? "Saving..." : "Save Journal Entry"}
+  </Button>
+</div>
+
             </section>
           </form>
 
