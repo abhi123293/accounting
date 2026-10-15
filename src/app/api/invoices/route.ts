@@ -76,6 +76,8 @@ export async function GET() {
         tax: Number(data.tax ?? 0),
         total: Number(data.total ?? 0),
         status: String(data.status ?? "draft"),
+        amountPaid: data.amountPaid ?? 0,
+balanceDue: data.balanceDue ?? data.total ?? 0,
       };
     });
 
@@ -256,3 +258,5 @@ export async function POST(request: Request) {
     return handleError(error);
   }
 }
+
+

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   TrendingUp,
   TrendingDown,
@@ -9,6 +9,7 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   ChevronDown,
+  Loader2,
 } from "lucide-react";
 
 import Sidebar from "@/components/layout/Sidebar";
@@ -19,36 +20,74 @@ import {
   type ReportingPeriod,
 } from "@/lib/reporting-period";
 
-const stats = [
-  {
-    title: "Total Revenue",
-    value: "₹ —",
-    note: "Selected reporting period",
-    icon: TrendingUp,
-    color: "text-emerald-600 dark:text-emerald-400",
-  },
-  {
-    title: "Total Expenses",
-    value: "₹ —",
-    note: "Selected reporting period",
-    icon: TrendingDown,
-    color: "text-rose-600 dark:text-rose-400",
-  },
-  {
-    title: "Net Profit",
-    value: "₹ —",
-    note: "Based on posted transactions",
-    icon: Wallet,
-    color: "text-blue-600 dark:text-blue-400",
-  },
-  {
-    title: "Outstanding Invoices",
-    value: "₹ —",
-    note: "Unpaid customer invoices",
-    icon: FileText,
-    color: "text-amber-600 dark:text-amber-400",
-  },
-];
+
+type DashboardStats = {
+  revenue: number;
+  expenses: number;
+  netProfit: number;
+  outstandingInvoices: number;
+};
+
+const initialStats: DashboardStats = {
+  revenue: 0,
+  expenses: 0,
+  netProfit: 0,
+  outstandingInvoices: 0,
+};
+
+const money = (amount: number) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2,
+  }).format(amount);
+
+type RecentItem = {
+  id: string;
+  title: string;
+  subtitle: string;
+  date: string;
+  status: string;
+};
+
+
+type DashboardInvoice = {
+  id: string;
+  invoiceNumber?: string;
+  customerName?: string;
+  issueDate?: string;
+  total?: number;
+  status?: string;
+};
+
+type DashboardEntry = {
+  id: string;
+  description?: string;
+  date?: string;
+  createdAt?: string;
+  status?: string;
+  lines?: {
+    accountId: string;
+    debit: number;
+    credit: number;
+  }[];
+};
+
+type DashboardAccount = {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+  isActive: boolean;
+};
+
+type CashFlowPoint = {
+  month: string;
+  received: number;
+  paid: number;
+};
+
+
 
 export default function DashboardPage() {
   const [reportingPeriod, setReportingPeriod] =
@@ -63,11 +102,258 @@ export default function DashboardPage() {
     endDate
   );
 
+  
+const [financialStats, setFinancialStats] =
+  useState<DashboardStats>(initialStats);
+const [recentActivity, setRecentActivity] =
+  useState<RecentItem[]>([]);
+const [dataLoading, setDataLoading] = useState(true);
+const [dataError, setDataError] = useState("");
+
+const [cashFlowData, setCashFlowData] =
+  useState<
+    { month: string; received: number; paid: number }[]
+  >([]);
+
+
   const invalidDateRange =
     reportingPeriod === "custom" &&
     startDate !== "" &&
     endDate !== "" &&
     startDate > endDate;
+
+    
+
+useEffect(() => {
+  if (!dateRange || invalidDateRange) {
+    setDataLoading(false);
+    return;
+  }
+
+  let cancelled = false;
+
+  async function loadDashboard() {
+    setDataLoading(true);
+    setDataError("");
+
+    try {
+      const params = new URLSearchParams({
+        startDate: dateRange!.startDate,
+        endDate: dateRange!.endDate,
+      });
+
+      const [reportResponse, invoiceResponse, ledgerResponse] =
+        await Promise.all([
+          fetch(`/api/reports/profit-loss?${params}`),
+          fetch("/api/invoices"),
+          fetch("/api/ledger"),
+        ]);
+
+      const [report, invoiceData, ledgerData] = await Promise.all([
+        reportResponse.json(),
+        invoiceResponse.json(),
+        ledgerResponse.json(),
+      ]);
+
+      if (!reportResponse.ok) {
+        throw new Error(
+          report.error || "Unable to load financial reports."
+        );
+      }
+
+      if (!invoiceResponse.ok) {
+        throw new Error(
+          invoiceData.error || "Unable to load invoices."
+        );
+      }
+
+      if (!ledgerResponse.ok) {
+        throw new Error(
+          ledgerData.error || "Unable to load journal entries."
+        );
+      }
+
+     
+const invoices: DashboardInvoice[] = Array.isArray(
+  invoiceData.invoices
+)
+  ? (invoiceData.invoices as DashboardInvoice[])
+  : [];
+
+const entries: DashboardEntry[] = Array.isArray(
+  ledgerData.entries
+)
+  ? (ledgerData.entries as DashboardEntry[])
+  : [];
+
+
+  console.log("Ledger data:", ledgerData);
+
+//   console.log(
+//   "Dashboard journal entries:",
+//   JSON.stringify(entries, null, 2)
+// );
+
+const accountsResponse = await fetch("/api/accounts", {
+  cache: "no-store",
+});
+
+const accountsData = await accountsResponse.json();
+
+if (!accountsResponse.ok) {
+  throw new Error(
+    accountsData.error || "Unable to load accounts."
+  );
+}
+
+const accounts: DashboardAccount[] = Array.isArray(
+  accountsData.accounts
+)
+  ? accountsData.accounts
+  : [];
+
+  
+
+const cashAccounts = accounts.filter(
+  (account) =>
+    account.isActive &&
+    account.type.toLowerCase() === "asset"
+);
+
+
+console.log("Cash accounts:", cashAccounts);
+
+const monthlyCashFlow = new Map<
+  string,
+  { month: string; received: number; paid: number }
+>();
+
+const start = new Date(`${dateRange!.startDate}T00:00:00`);
+const end = new Date(`${dateRange!.endDate}T00:00:00`);
+
+const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+const lastMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+
+while (cursor <= lastMonth) {
+  const key = `${cursor.getFullYear()}-${String(
+    cursor.getMonth() + 1
+  ).padStart(2, "0")}`;
+
+  monthlyCashFlow.set(key, {
+    month: cursor.toLocaleDateString("en-IN", {
+      month: "short",
+      year: "2-digit",
+    }),
+    received: 0,
+    paid: 0,
+  });
+
+  cursor.setMonth(cursor.getMonth() + 1);
+}
+
+
+for (const entry of entries) {
+
+  console.log("Checking entry:", {
+  description: entry.description,
+  status: entry.status,
+  date: entry.date,
+  lines: entry.lines,
+});
+  if (entry.status !== "posted" || !entry.date) continue;
+
+  if (
+    entry.date < dateRange!.startDate ||
+    entry.date > dateRange!.endDate
+  ) {
+    continue;
+  }
+
+  const monthKey = entry.date.slice(0, 7);
+  const point = monthlyCashFlow.get(monthKey);
+  if (!point) continue;
+
+  for (const line of entry.lines ?? []) {
+    if (!cashAccounts.some((account) => account.id === line.accountId)) {
+      continue;
+    }
+
+    point.received += Math.max(0, Number(line.debit) || 0);
+    point.paid += Math.max(0, Number(line.credit) || 0);
+  }
+}
+
+const calculatedCashFlow = Array.from(monthlyCashFlow.values());
+
+
+
+      const outstandingInvoices = invoices
+        .filter((invoice) => {
+          const status = String(invoice.status ?? "draft").toLowerCase();
+          return status !== "draft" && status !== "paid";
+        })
+        .reduce(
+          (sum, invoice) => sum + Math.max(0, Number(invoice.total) || 0),
+          0
+        );
+
+      const recentInvoices: RecentItem[] = invoices.map((invoice) => ({
+        id: `invoice-${invoice.id}`,
+        title: invoice.invoiceNumber || "Invoice",
+        subtitle: invoice.customerName || "Customer",
+        date: invoice.issueDate || "",
+        status: String(invoice.status || "draft"),
+      }));
+
+      const recentEntries: RecentItem[] = entries
+        .filter((entry) => entry.status === "posted")
+        .map((entry) => ({
+          id: `entry-${entry.id}`,
+          title: entry.description || "Journal entry",
+          subtitle: "Journal entry",
+          date: entry.date || entry.createdAt || "",
+          status: String(entry.status || "posted"),
+        }));
+
+      const activity = [...recentInvoices, ...recentEntries]
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 5);
+
+      if (!cancelled) {
+        setFinancialStats({
+          revenue: Number(report.revenue) || 0,
+          expenses: Number(report.expenses) || 0,
+          netProfit: Number(report.netProfit) || 0,
+          outstandingInvoices,
+        });
+
+        
+setRecentActivity(activity);
+setCashFlowData(calculatedCashFlow);
+
+      }
+    } catch (error) {
+      if (!cancelled) {
+        setDataError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load dashboard data."
+        );
+      }
+    } finally {
+      if (!cancelled) {
+        setDataLoading(false);
+      }
+    }
+  }
+
+  void loadDashboard();
+
+  return () => {
+    cancelled = true;
+  };
+}, [dateRange?.startDate, dateRange?.endDate, invalidDateRange]);
+
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
@@ -80,7 +366,7 @@ export default function DashboardPage() {
 
         <div className="space-y-8 p-5 sm:p-8">
           {/* Financial Overview */}
-          <section className="flex flex-wrap items-end justify-between gap-4">
+          <section className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h1 className="text-2xl font-bold tracking-tight">
                 Financial Overview
@@ -91,7 +377,7 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-wrap items-end justify-start gap-3 sm:justify-end">
               {/* Reporting Period */}
               <div className="space-y-1">
                 <label
@@ -184,7 +470,7 @@ export default function DashboardPage() {
               {/* Selected Date Range */}
            
             <p
-              className="w-full text-xs text-muted-foreground"
+              className="w-full text-right text-xs text-muted-foreground"
               aria-live="polite"
             >
               {invalidDateRange
@@ -197,41 +483,71 @@ export default function DashboardPage() {
             </p>
 
             </div>
-
-            <span className="rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground">
-              Current reporting period
-            </span>
           </section>
 
           {/* Financial Statistics */}
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {stats.map((stat) => {
-              const Icon = stat.icon;
+          
+<section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+  {[
+    {
+      title: "Total Revenue",
+      value: financialStats.revenue,
+      note: "Selected reporting period",
+      icon: TrendingUp,
+      color: "text-emerald-600 dark:text-emerald-400",
+    },
+    {
+      title: "Total Expenses",
+      value: financialStats.expenses,
+      note: "Selected reporting period",
+      icon: TrendingDown,
+      color: "text-rose-600 dark:text-rose-400",
+    },
+    {
+      title: "Net Profit",
+      value: financialStats.netProfit,
+      note: "Based on posted transactions",
+      icon: Wallet,
+      color: "text-blue-600 dark:text-blue-400",
+    },
+    {
+      title: "Outstanding Invoices",
+      value: financialStats.outstandingInvoices,
+      note: "Non-draft, unpaid invoices",
+      icon: FileText,
+      color: "text-amber-600 dark:text-amber-400",
+    },
+  ].map((stat) => {
+    const Icon = stat.icon;
 
-              return (
-                <article
-                  key={stat.title}
-                  className="rounded-xl border border-border bg-card p-5 shadow-sm"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm text-muted-foreground">
-                      {stat.title}
-                    </p>
+    return (
+      <article
+        key={stat.title}
+        className="rounded-xl border border-border bg-card p-5 shadow-sm"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            {stat.title}
+          </p>
+          <Icon className={`h-5 w-5 ${stat.color}`} />
+        </div>
 
-                    <Icon className={`h-5 w-5 ${stat.color}`} />
-                  </div>
+        <p className="mt-4 text-2xl font-bold tracking-tight">
+          {dataLoading ? (
+            <Loader2 className="h-6 w-6 animate-spin" />
+          ) : (
+            money(stat.value)
+          )}
+        </p>
 
-                  <p className="mt-4 text-2xl font-bold tracking-tight">
-                    {stat.value}
-                  </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          {stat.note}
+        </p>
+      </article>
+    );
+  })}
+</section>
 
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {stat.note}
-                  </p>
-                </article>
-              );
-            })}
-          </section>
 
           {/* Cash Flow and Recent Activity */}
           <section className="grid gap-6 xl:grid-cols-3">
@@ -246,7 +562,7 @@ export default function DashboardPage() {
                 </p>
 
                 <div className="mt-6">
-                  <CashFlowChart />
+                  <CashFlowChart data={cashFlowData} />
 
                   <p className="mt-3 text-xs text-muted-foreground">
                     Illustrative sample data — not actual business cash flow.
@@ -264,17 +580,52 @@ export default function DashboardPage() {
                 Your latest financial records
               </p>
 
-              <div className="mt-6 flex min-h-48 flex-col items-center justify-center text-center">
-                <FileText className="mb-3 h-8 w-8 text-muted-foreground" />
+              
+<div className="mt-6 space-y-4">
+  {dataError && (
+    <p role="alert" className="text-sm text-red-600">
+      {dataError}
+    </p>
+  )}
 
-                <p className="font-medium">
-                  No activity to display
-                </p>
+  {dataLoading ? (
+    <div className="flex justify-center py-8">
+      <Loader2 className="h-6 w-6 animate-spin" />
+    </div>
+  ) : recentActivity.length === 0 ? (
+    <div className="flex min-h-40 flex-col items-center justify-center text-center">
+      <FileText className="mb-3 h-8 w-8 text-muted-foreground" />
+      <p className="font-medium">No activity to display</p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Recent invoices and posted transactions will appear here.
+      </p>
+    </div>
+  ) : (
+    recentActivity.map((item) => (
+      <div
+        key={item.id}
+        className="flex items-start justify-between gap-3 border-b border-border pb-3 last:border-0"
+      >
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">
+            {item.title}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {item.subtitle}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {item.date || "Date unavailable"}
+          </p>
+        </div>
 
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Recent invoices and posted transactions will appear here.
-                </p>
-              </div>
+        <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-xs capitalize">
+          {item.status}
+        </span>
+      </div>
+    ))
+  )}
+</div>
+
             </article>
           </section>
 

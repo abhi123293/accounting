@@ -8,6 +8,8 @@ import {
   Wallet,
   Search,
   RefreshCw,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
@@ -54,9 +56,13 @@ export default function AccountsPage() {
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
-  const [form, setForm] = useState(emptyForm);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
+ 
+const [form, setForm] = useState(emptyForm);
+const [editingId, setEditingId] = useState<string | null>(null);
+const [deletingId, setDeletingId] = useState<string | null>(null);
+const [error, setError] = useState("");
+const [message, setMessage] = useState("");
+
 
   const loadAccounts = useCallback(async () => {
     setLoading(true);
@@ -150,34 +156,150 @@ export default function AccountsPage() {
     }
   }
 
-  function exportAccounts() {
-    const headers = ["Account Code", "Account Name", "Type", "Status"];
-    const rows = filteredAccounts.map((account) => [
-      account.code,
-      account.name,
-      account.type,
-      account.isActive ? "Active" : "Inactive",
-    ]);
 
-    const escapeCsv = (value: string) =>
-      `"${value.replace(/"/g, '""')}"`;
+function exportAccounts() {
+  const headers = ["Account Code", "Account Name", "Type", "Status"];
 
-    const csv = [headers, ...rows]
-      .map((row) => row.map(escapeCsv).join(","))
-      .join("\r\n");
+  const rows = filteredAccounts.map((account) => [
+    account.code,
+    account.name,
+    account.type,
+    account.isActive ? "Active" : "Inactive",
+  ]);
 
-    const url = URL.createObjectURL(
-      new Blob(["\uFEFF" + csv], {
-        type: "text/csv;charset=utf-8;",
-      })
+  const escapeCsv = (value: string) =>
+    `"${value.replace(/"/g, '""')}"`;
+
+  const csv = [headers, ...rows]
+    .map((row) => row.map(escapeCsv).join(","))
+    .join("\r\n");
+
+  const url = URL.createObjectURL(
+    new Blob(["\uFEFF" + csv], {
+      type: "text/csv;charset=utf-8;",
+    })
+  );
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "chart-of-accounts.csv";
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function handleEditAccount(account: Account) {
+  setEditingId(account.id);
+  setForm({
+    code: account.code,
+    name: account.name,
+    type: account.type,
+  });
+  setError("");
+  setMessage("");
+  setShowForm(true);
+}
+
+async function handleSaveAccount(
+  event: React.FormEvent<HTMLFormElement>
+) {
+  event.preventDefault();
+
+  if (!editingId) return;
+
+  const code = form.code.trim();
+  const name = form.name.trim();
+
+  if (!code || !name) {
+    setError("Account code and account name are required.");
+    return;
+  }
+
+  setSaving(true);
+  setError("");
+  setMessage("");
+
+  try {
+    const response = await fetch(`/api/accounts/${editingId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code,
+        name,
+        type: form.type,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Unable to update account.");
+    }
+
+    setAccounts((previous) =>
+      previous.map((account) =>
+        account.id === editingId ? data.account : account
+      )
     );
 
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "chart-of-accounts.csv";
-    link.click();
-    URL.revokeObjectURL(url);
+    setForm(emptyForm);
+    setEditingId(null);
+    setShowForm(false);
+    setMessage("Account updated successfully.");
+  } catch (err) {
+    setError(
+      err instanceof Error ? err.message : "Unable to update account."
+    );
+  } finally {
+    setSaving(false);
   }
+}
+
+async function handleDeleteAccount(account: Account) {
+  const confirmed = window.confirm(
+    `Delete or deactivate "${account.name}" (${account.code})?`
+  );
+
+  if (!confirmed) return;
+
+  setDeletingId(account.id);
+  setError("");
+  setMessage("");
+
+  try {
+    const response = await fetch(`/api/accounts/${account.id}`, {
+      method: "DELETE",
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Unable to delete account.");
+    }
+
+    if (data.isActive === false) {
+      setAccounts((previous) =>
+        previous.map((item) =>
+          item.id === account.id
+            ? { ...item, isActive: false }
+            : item
+        )
+      );
+    } else {
+      setAccounts((previous) =>
+        previous.filter((item) => item.id !== account.id)
+      );
+    }
+
+    setMessage(data.message || "Account updated successfully.");
+  } catch (err) {
+    setError(
+      err instanceof Error ? err.message : "Unable to delete account."
+    );
+  } finally {
+    setDeletingId(null);
+  }
+}
+
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
@@ -213,10 +335,12 @@ export default function AccountsPage() {
               </Button>
 
               <Button onClick={() => {
-                setError("");
-                setMessage("");
-                setShowForm((value) => !value);
-              }}>
+  setError("");
+  setMessage("");
+  setEditingId(null);
+  setForm(emptyForm);
+  setShowForm((value) => !value);
+}}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Account
               </Button>
@@ -224,7 +348,7 @@ export default function AccountsPage() {
           </section>
 
           {error && (
-            <p role="alert" className="rounded-lg border border-destructive/40 p-3 text-sm text-destructive">
+            <p role="alert" className="rounded-lg border border-red-500/40 bg-red-50 p-3 text-sm text-red-600 dark:bg-red-950/30 dark:text-red-400">
               {error}
             </p>
           )}
@@ -237,10 +361,12 @@ export default function AccountsPage() {
 
           {showForm && (
             <section className="rounded-xl border border-border bg-card p-5">
-              <h2 className="mb-4 text-lg font-semibold">Add Account</h2>
+              <h2 className="mb-4 text-lg font-semibold">
+  {editingId ? "Edit Account" : "Add Account"}
+</h2>
 
               <form
-                onSubmit={handleAddAccount}
+                onSubmit={editingId ? handleSaveAccount : handleAddAccount}
                 className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
               >
                 <div className="space-y-2">
@@ -291,13 +417,21 @@ export default function AccountsPage() {
                 </div>
 
                 <div className="flex items-end gap-2">
-                  <Button type="submit" disabled={saving}>
-                    {saving ? "Saving..." : "Save Account"}
-                  </Button>
+                 <Button type="submit" disabled={saving}>
+  {saving
+    ? "Saving..."
+    : editingId
+      ? "Update Account"
+      : "Save Account"}
+</Button>
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setShowForm(false)}
+onClick={() => {
+  setShowForm(false);
+  setEditingId(null);
+  setForm(emptyForm);
+}}
                     disabled={saving}
                   >
                     Cancel
@@ -366,24 +500,27 @@ export default function AccountsPage() {
 
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-muted/50 text-left">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Code</th>
-                    <th className="px-4 py-3 font-medium">Account name</th>
-                    <th className="px-4 py-3 font-medium">Type</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                  </tr>
-                </thead>
+                
+<thead className="bg-muted/50 text-left">
+  <tr>
+    <th className="px-4 py-3 font-medium">Code</th>
+    <th className="px-4 py-3 font-medium">Account name</th>
+    <th className="px-4 py-3 font-medium">Type</th>
+    <th className="px-4 py-3 font-medium">Status</th>
+    <th className="px-4 py-3 font-medium text-right">Actions</th>
+  </tr>
+</thead>
+
                 <tbody className="divide-y divide-border">
                   {loading ? (
                     <tr>
-                      <td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">
+                      <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
                         Loading accounts...
                       </td>
                     </tr>
                   ) : filteredAccounts.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">
+                      <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
                         No accounts found. Add an account to get started.
                       </td>
                     </tr>
@@ -402,6 +539,34 @@ export default function AccountsPage() {
                             {account.isActive ? "Active" : "Inactive"}
                           </span>
                         </td>
+                        
+<td className="px-4 py-3">
+  <div className="flex justify-end gap-2">
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={() => handleEditAccount(account)}
+      aria-label={`Edit ${account.name}`}
+    >
+      <Pencil className="mr-1 h-4 w-4" />
+      Edit
+    </Button>
+
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={() => handleDeleteAccount(account)}
+      disabled={deletingId === account.id}
+      aria-label={`Delete ${account.name}`}
+    >
+      <Trash2 className="mr-1 h-4 w-4" />
+      {deletingId === account.id ? "Deleting..." : "Delete"}
+    </Button>
+  </div>
+</td>
+
                       </tr>
                     ))
                   )}
