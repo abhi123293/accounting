@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { isAdminUid } from "@/lib/admin-uid";
+import { createNotification } from "@/lib/notifications";
 
 const ACCOUNT_TYPES = [
   "asset",
@@ -156,6 +157,14 @@ if (!adminDb) {throw new Error("ADMIN_NOT_CONFIGURED");}
 
     await accountRef.update({ code, name, type });
 
+    await createNotification({
+  title: "Account updated",
+  message: `${code} — ${name} was updated.`,
+  type: "account_updated",
+  link: "/accounts",
+  entityId: id,
+});
+
     return NextResponse.json({
       account: {
         id,
@@ -200,11 +209,31 @@ export async function DELETE(
       });
     }
 
+    await createNotification({
+  title: "Account deactivated",
+  message: `${String(accountSnapshot.data()?.name ?? "Account")} was deactivated because it is used in journal entries.`,
+  type: "account_deactivated",
+  link: "/accounts",
+  entityId: id,
+});
+
     await accountRef.delete();
+
+    await createNotification({
+      title: "Account deleted",
+      message: `${String(
+        accountSnapshot.data()?.name ?? "Account"
+      )} was deleted successfully.`,
+      type: "account_deleted",
+      link: "/accounts",
+      entityId: id,
+    });
+
 
     return NextResponse.json({
       message: "Account deleted successfully.",
     });
+    
   } catch (error) {
     return handleError(error);
   }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { isAdminUid } from "@/lib/admin-uid";
+import { createNotification } from "@/lib/notifications";
 
 async function verifyAdmin() {
   if (!adminAuth) {
@@ -143,6 +144,23 @@ export async function POST(
         status,
       };
     });
+
+    await createNotification({
+  title: result.status === "paid" ? "Invoice fully paid" : "Payment recorded",
+  message:
+    result.status === "paid"
+      ? `Invoice ${id} has been fully paid.`
+      : `A payment of ${new Intl.NumberFormat("en-IN", {
+          style: "currency",
+          currency: "INR",
+        }).format(amount)} was recorded for invoice ${id}. Remaining balance: ${new Intl.NumberFormat("en-IN", {
+          style: "currency",
+          currency: "INR",
+        }).format(result.balanceDue)}.`,
+  type: result.status === "paid" ? "invoice_paid" : "payment_recorded",
+  link: "/invoices",
+  entityId: id,
+});
 
     return NextResponse.json({ success: true, ...result });
   } catch (error) {

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { isAdminUid } from "@/lib/admin-uid";
+import { createNotification } from "@/lib/notifications";
 
 const CONTACT_TYPES = ["customer", "vendor", "both"] as const;
 
@@ -155,6 +156,14 @@ export async function POST(request: Request) {
     const document = await adminDb
       .collection("contacts")
       .add(contactData);
+
+      await createNotification({
+  title: "Contact created",
+  message: `${name} was added as a ${type}.`,
+  type: "contact_created",
+  link: "/contacts",
+  entityId: document.id,
+});
 
     return NextResponse.json(
       {

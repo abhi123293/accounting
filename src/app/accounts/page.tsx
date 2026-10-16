@@ -17,6 +17,7 @@ import { useRequireAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { createNotification } from "@/lib/notifications";
 
 type AccountType =
   | "asset"

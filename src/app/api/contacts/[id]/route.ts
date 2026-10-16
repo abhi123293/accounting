@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { isAdminUid } from "@/lib/admin-uid";
+import { createNotification } from "@/lib/notifications";
 
 const CONTACT_TYPES = ["customer", "vendor", "both"] as const;
 
@@ -151,6 +152,14 @@ export async function PATCH(
       updatedAt: new Date().toISOString(),
     });
 
+    await createNotification({
+  title: "Contact updated",
+  message: `${name}'s contact details were updated.`,
+  type: "contact_updated",
+  link: "/contacts",
+  entityId: id,
+});
+
     return NextResponse.json({
       contact: {
         id,
@@ -195,11 +204,21 @@ export async function DELETE(
       );
     }
 
+    const deletedName = String(contactDoc.data()?.name ?? "Contact");
+
     await contactRef.delete();
 
     return NextResponse.json({
       message: "Contact deleted successfully.",
     });
+
+    await createNotification({
+  title: "Contact deleted",
+  message: `${deletedName} was deleted.`,
+  type: "contact_deleted",
+  link: "/contacts",
+  entityId: id,
+});
   } catch (error) {
     return handleError(error);
   }

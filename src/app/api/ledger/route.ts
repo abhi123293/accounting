@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { isAdminUid } from "@/lib/admin-uid";
+import { createNotification } from "@/lib/notifications";
 
 const ACCOUNT_TYPES = ["asset","liability","equity","revenue","expense",];
 
@@ -197,6 +198,17 @@ export async function POST(request: Request) {
     const document = await adminDb
       .collection("transactions")
       .add(entry);
+
+      await createNotification({
+  title: "Journal entry created",
+  message: `${description} — total ${new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+  }).format(totalDebits / 100)}.`,
+  type: "ledger_created",
+  link: "/ledger",
+  entityId: document.id,
+});
 
     return NextResponse.json(
       { entry: { id: document.id, ...entry } },

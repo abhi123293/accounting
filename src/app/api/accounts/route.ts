@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { isAdminUid } from "@/lib/admin-uid";
+import { createNotification } from "@/lib/notifications";
 
 const ACCOUNT_TYPES = [
   "asset",
@@ -156,6 +157,14 @@ export async function POST(request: Request) {
         ...newAccount,
       };
     });
+
+    await createNotification({
+  title: "Account created",
+  message: `${account.code} — ${account.name} was added to the chart of accounts.`,
+  type: "account_created",
+  link: "/accounts",
+  entityId: account.id,
+});
 
     return NextResponse.json({ account }, { status: 201 });
   } catch (error) {

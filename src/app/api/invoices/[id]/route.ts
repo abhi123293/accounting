@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { isAdminUid } from "@/lib/admin-uid";
+import { createNotification } from "@/lib/notifications";
 
 async function verifyAdmin() {
   if (!adminAuth) {
@@ -70,6 +71,14 @@ export async function PATCH(
       status: "sent",
       sentAt: new Date().toISOString(),
     });
+
+    await createNotification({
+  title: "Invoice issued",
+  message: `Invoice ${id} was issued successfully.`,
+  type: "invoice_issued",
+  link: "/invoices",
+  entityId: id,
+});
 
     return NextResponse.json({
       success: true,

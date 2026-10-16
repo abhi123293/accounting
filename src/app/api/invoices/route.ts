@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { isAdminUid } from "@/lib/admin-uid";
+import { createNotification } from "@/lib/notifications";
 
 async function verifyAdmin() {
   if (!adminAuth) {
@@ -244,6 +245,14 @@ export async function POST(request: Request) {
     const document = await adminDb
       .collection("invoices")
       .add(invoiceData);
+      
+      await createNotification({
+  title: "Invoice created",
+  message: `${invoiceNumber} was created for ${String(customer.name ?? "customer")}.`,
+  type: "invoice_created",
+  link: "/invoices",
+  entityId: document.id,
+});
 
     return NextResponse.json(
       {
