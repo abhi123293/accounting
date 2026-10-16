@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
+import { isAdminUid } from "@/lib/admin-uid";
 
 const ACCOUNT_TYPES = [
   "asset",
@@ -31,9 +32,7 @@ async function verifyAdminSession() {
     true
   );
 
-  const adminUid = process.env.FIREBASE_ADMIN_UID;
-
-  if (!adminUid || decoded.uid !== adminUid) {
+  if (!isAdminUid(decoded.uid)) {
     throw new Error("FORBIDDEN");
   }
 

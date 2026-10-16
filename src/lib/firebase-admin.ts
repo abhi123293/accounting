@@ -42,8 +42,8 @@ try {
                 clientEmail: serviceAccount.client_email,
                 privateKey: serviceAccount.private_key.replace(/\\n/g, "\n"),
               }),
-storageBucket: 'accounting-software-505d5',
-            });
+storageBucket: 'accounting-software-505d5.firebasestorage.app',
+          });
 
       adminAuth = getAuth(app);
       adminDb = getFirestore(app);
@@ -64,7 +64,7 @@ storageBucket: 'accounting-software-505d5',
         ? getApp()
         : initializeApp({
             credential: cert(serviceAccount),
-            storageBucket: 'accounting-software-505d5',
+storageBucket: 'accounting-software-505d5.firebasestorage.app',
           });
 
     adminAuth = getAuth(app);

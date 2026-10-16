@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
+import { isAdminUid } from "@/lib/admin-uid";
 
 export async function POST(request: Request) {
   try {
@@ -24,9 +25,7 @@ export async function POST(request: Request) {
 
     const decodedToken = await adminAuth.verifyIdToken(token);
 
-    const adminUid = process.env.FIREBASE_ADMIN_UID;
-
-    if (!adminUid || decodedToken.uid !== adminUid) {
+    if (!isAdminUid(decodedToken.uid)) {
       return NextResponse.json(
         { error: "Admin access required" },
         { status: 403 }

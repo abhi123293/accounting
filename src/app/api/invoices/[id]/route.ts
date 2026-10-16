@@ -2,19 +2,21 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
+import { isAdminUid } from "@/lib/admin-uid";
 
 async function verifyAdmin() {
+  if (!adminAuth) {
+    throw new Error("ADMIN_NOT_CONFIGURED");
+  }
+
   const cookieStore = await cookies();
-  const session = cookieStore.get("session")?.value;
+  const session = cookieStore.get("__session")?.value;
 
   if (!session) throw new Error("UNAUTHORIZED");
 
   const decoded = await adminAuth.verifySessionCookie(session, true);
 
-  if (
-    !process.env.FIREBASE_ADMIN_UID ||
-    decoded.uid !== process.env.FIREBASE_ADMIN_UID
-  ) {
+  if (!isAdminUid(decoded.uid)) {
     throw new Error("FORBIDDEN");
   }
 }

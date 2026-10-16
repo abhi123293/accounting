@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
+import { isAdminUid } from "@/lib/admin-uid";
 
 type Account = {
   name?: string;
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
 
     // Verify the administrator session.
     const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get("session")?.value;
+    const sessionCookie = cookieStore.get("__session")?.value;
 
     if (!sessionCookie) {
       return NextResponse.json(
@@ -54,9 +55,7 @@ export async function GET(request: Request) {
       true
     );
 
-    const adminUid = process.env.FIREBASE_ADMIN_UID;
-
-    if (!adminUid || decoded.uid !== adminUid) {
+    if (!isAdminUid(decoded.uid)) {
       return NextResponse.json(
         { error: "Administrator access required." },
         { status: 403 }
