@@ -40,3 +40,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 firebase-service-account.json
+
+.open-next
+.wrangler
+.dev.vars*
+!.dev.vars.example
+
+!.env.example

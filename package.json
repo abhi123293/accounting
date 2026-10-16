@@ -2,14 +2,18 @@
   "name": "accounting-software",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
+ "scripts": {
+  "dev": "next dev",
+  "build": "next build",
+  "start": "next start",
+  "lint": "eslint",
+  "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+  "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+  "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
+},
   "dependencies": {
     "@base-ui/react": "^1.9.0",
+    "@opennextjs/cloudflare": "^1.20.12",
     "@radix-ui/react-switch": "^1.4.1",
     "@radix-ui/react-tabs": "^1.2.1",
     "@tanstack/react-query": "^5.104.2",
@@ -19,7 +23,7 @@
     "firebase-admin": "^14.5.0",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.56.0",
-    "next": "16.4.0",
+    "next": "^16.4.1",
     "next-themes": "^1.0.0-beta.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
@@ -34,8 +38,9 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.4.0",
+    "eslint-config-next": "^16.4.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.151.0"
   }
 }

@@ -18,8 +18,9 @@ type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
+
 async function verifyAdmin() {
-  if (!adminAuth) {
+  if (!adminAuth || !adminDb) {
     throw new Error("ADMIN_NOT_CONFIGURED");
   }
 
@@ -34,6 +35,7 @@ async function verifyAdmin() {
     throw new Error("FORBIDDEN");
   }
 }
+
 
 function handleError(error: unknown) {
   if (error instanceof Error && error.message === "UNAUTHORIZED") {
@@ -50,6 +52,16 @@ function handleError(error: unknown) {
     );
   }
 
+  if (
+  error instanceof Error &&
+  error.message === "ADMIN_NOT_CONFIGURED"
+) {
+  return NextResponse.json(
+    { error: "Firebase Admin is not configured correctly." },
+    { status: 500 }
+  );
+}
+
   console.error("Account API error:", error);
 
   return NextResponse.json(
@@ -58,7 +70,12 @@ function handleError(error: unknown) {
   );
 }
 
+
 async function isAccountUsed(accountId: string) {
+  if (!adminDb) {
+    throw new Error("ADMIN_NOT_CONFIGURED");
+  }
+
   const snapshot = await adminDb.collection("transactions").get();
 
   return snapshot.docs.some((document) => {
@@ -72,13 +89,14 @@ async function isAccountUsed(accountId: string) {
   });
 }
 
+
 export async function PATCH(
   request: Request,
   context: RouteContext
 ) {
   try {
     await verifyAdmin();
-
+if (!adminDb) {throw new Error("ADMIN_NOT_CONFIGURED");}
     const { id } = await context.params;
     const accountRef = adminDb.collection("accounts").doc(id);
     const accountSnapshot = await accountRef.get();
@@ -158,7 +176,7 @@ export async function DELETE(
 ) {
   try {
     await verifyAdmin();
-
+     if (!adminDb) {throw new Error("ADMIN_NOT_CONFIGURED");}
     const { id } = await context.params;
     const accountRef = adminDb.collection("accounts").doc(id);
     const accountSnapshot = await accountRef.get();
