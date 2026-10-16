@@ -9,7 +9,11 @@ async function verifyAdmin() {
 
   if (!session) throw new Error("UNAUTHORIZED");
 
-  const decoded = await adminAuth.verifySessionCookie(session, true);
+ if (!adminAuth || !adminDb) {
+  throw new Error("FIREBASE_ADMIN_NOT_INITIALIZED");
+}
+
+const decoded = await adminAuth.verifySessionCookie(session, true);
 
   if (
     !process.env.FIREBASE_ADMIN_UID ||
@@ -28,6 +32,13 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
+
+    if (!adminDb) {
+  return NextResponse.json(
+    { error: "Firebase Admin database is not initialized." },
+    { status: 500 }
+  );
+}
 
     if (body.status !== "sent") {
       return NextResponse.json(
@@ -64,6 +75,7 @@ export async function PATCH(
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
+    
 
     if (message === "UNAUTHORIZED") {
       return NextResponse.json(
@@ -78,6 +90,17 @@ export async function PATCH(
         { status: 403 }
       );
     }
+
+    if (message === "FIREBASE_ADMIN_NOT_INITIALIZED") {
+  return NextResponse.json(
+    {
+      error:
+        "Firebase Admin is not initialized. Check your server configuration.",
+    },
+    { status: 500 }
+  );
+}
+    
 
     console.error("Issue invoice error:", error);
 
