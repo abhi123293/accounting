@@ -13,7 +13,11 @@ async function verifyAdmin() {
 
   if (!session) throw new Error("UNAUTHORIZED");
 
-  const decoded = await adminAuth.verifySessionCookie(session, true);
+if (!adminAuth || !adminDb) {
+  throw new Error("FIREBASE_ADMIN_NOT_INITIALIZED");
+}
+
+const decoded = await adminAuth.verifySessionCookie(session, true);
 
   if (!isAdminUid(decoded.uid)) {
     throw new Error("FORBIDDEN");
@@ -27,6 +31,9 @@ export async function POST(
   try {
     await verifyAdmin();
 
+    if (!adminAuth || !adminDb) {
+  throw new Error("FIREBASE_ADMIN_NOT_INITIALIZED");
+}
     const { id } = await params;
     const body = await request.json();
 
@@ -170,6 +177,10 @@ export async function POST(
         error: "Payment cannot exceed the remaining balance.",
         status: 400,
       },
+      FIREBASE_ADMIN_NOT_INITIALIZED: {
+  error: "Firebase Admin is not initialized. Check your server configuration.",
+  status: 500,
+},
     };
 
     const knownError = errors[message];
@@ -190,14 +201,3 @@ export async function POST(
   }
 }
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
-
-  return NextResponse.json({
-    message: "Payment API route is working",
-    invoiceId: id,
-  });
-}

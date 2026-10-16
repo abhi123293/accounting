@@ -111,13 +111,14 @@ const filteredInvoices = invoices.filter((invoice) => {
     ? new Date(`${invoice.dueDate}T00:00:00`)
     : null;
 
-  const effectiveStatus =
-    status === "sent" &&
-    dueDate &&
-    !Number.isNaN(dueDate.getTime()) &&
-    dueDate < today
-      ? "overdue"
-      : status;
+ const effectiveStatus =
+  status !== "draft" &&
+  status !== "paid" &&
+  dueDate &&
+  !Number.isNaN(dueDate.getTime()) &&
+  dueDate < today
+    ? "overdue"
+    : status;
 
   const matchesStatus =
     statusFilter === "all" ||
@@ -149,6 +150,10 @@ const filteredInvoices = invoices.filter((invoice) => {
       tax: invoice.tax ?? 0,
       total: invoice.total ?? 0,
       status: invoice.status ?? "draft",
+      amountPaid: invoice.amountPaid ?? 0,
+    balanceDue:
+      invoice.balanceDue ??
+      (invoice.total ?? 0) - (invoice.amountPaid ?? 0),
     });
   } catch {
     setError("Unable to generate the invoice PDF.");
@@ -346,6 +351,7 @@ const data = await response.json();
   <option value="sent">Unpaid</option>
   <option value="paid">Paid</option>
   <option value="overdue">Overdue</option>
+  <option value="partially_paid">Partially Paid</option>
 </select>
 
             </div>
@@ -387,7 +393,7 @@ const data = await response.json();
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
+                <table className="w-full min-w-[1250px] text-left text-sm">
                   <thead className="bg-muted/50 text-muted-foreground">
                     <tr>
                       <th className="px-5 py-3 font-medium">Invoice</th>
@@ -395,7 +401,9 @@ const data = await response.json();
                       <th className="px-5 py-3 font-medium">Issue Date</th>
                       <th className="px-5 py-3 font-medium">Due Date</th>
                       <th className="px-5 py-3 font-medium">Total</th>
-                      <th className="px-5 py-3 font-medium">Status</th>
+<th className="px-5 py-3 font-medium">Amount Paid</th>
+<th className="px-5 py-3 font-medium">Balance Due</th>
+<th className="px-5 py-3 font-medium">Status</th>
                       <th className="px-5 py-3 font-medium">Actions</th>
                     </tr>
                   </thead>
@@ -403,18 +411,19 @@ const data = await response.json();
                   <tbody className="divide-y">
                     {filteredInvoices.map((invoice) => (
                       <tr key={invoice.id} className="hover:bg-muted/30">
-                        <td className="px-5 py-4 font-medium">
-                          {invoice.invoiceNumber || invoice.id}
-                        </td>
+                        <td className="whitespace-nowrap px-5 py-4 font-medium">
+  {invoice.invoiceNumber || invoice.id}
+</td>
                         <td className="px-5 py-4">
                           {invoice.customerName || "—"}
                         </td>
-                        <td className="px-5 py-4">
-                          {invoice.issueDate || "—"}
-                        </td>
-                        <td className="px-5 py-4">
-                          {invoice.dueDate || "—"}
-                        </td>
+                        <td className="whitespace-nowrap px-5 py-4">
+  {invoice.issueDate || "—"}
+</td>
+
+<td className="whitespace-nowrap px-5 py-4">
+  {invoice.dueDate || "—"}
+</td>
                         <td className="px-5 py-4">
                           {typeof invoice.total === "number"
                             ? new Intl.NumberFormat("en-IN", {
@@ -424,8 +433,25 @@ const data = await response.json();
                             : "—"}
                         </td>
                         <td className="px-5 py-4">
-                          <InvoiceStatus status={invoice.status} />
-                        </td>
+  {new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+  }).format(invoice.amountPaid ?? 0)}
+</td>
+
+<td className="px-5 py-4 font-medium">
+  {new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+  }).format(invoice.balanceDue ?? invoice.total ?? 0)}
+</td>
+
+{/* Status column */}
+<td className="px-5 py-4">
+  <InvoiceStatus status={invoice.status} />
+</td>
+
+{/* Actions column */}
 <td className="px-5 py-4">
   <Button
     type="button"
@@ -463,7 +489,7 @@ const data = await response.json();
     className="ml-2 whitespace-nowrap"
     onClick={() => {
       setPaymentInvoice(invoice);
-      setPaymentAmount(String(invoice.balanceDue));
+      setPaymentAmount(String(invoice.balanceDue ?? invoice.total ?? 0));
       setPaymentDate(new Date().toISOString().slice(0, 10));
       setPaymentMethod("upi");
       setPaymentReference("");
@@ -585,6 +611,7 @@ function InvoiceStatus({ status }: { status?: string }) {
     sent: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
     paid: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300",
     overdue: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
+    partially_paid:"bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
   };
 
   return (
@@ -593,9 +620,11 @@ function InvoiceStatus({ status }: { status?: string }) {
         styles[value] ?? "bg-muted text-muted-foreground"
       }`}
     >
-      {value === "sent"
+     {value === "sent"
   ? "Unpaid"
-  : value.charAt(0).toUpperCase() + value.slice(1)}
+  : value === "partially_paid"
+    ? "Partially Paid"
+    : value.charAt(0).toUpperCase() + value.slice(1)}
     </span>
   );
 }
