@@ -150,6 +150,10 @@ const filteredInvoices = invoices.filter((invoice) => {
       tax: invoice.tax ?? 0,
       total: invoice.total ?? 0,
       status: invoice.status ?? "draft",
+      amountPaid: invoice.amountPaid ?? 0,
+    balanceDue:
+      invoice.balanceDue ??
+      (invoice.total ?? 0) - (invoice.amountPaid ?? 0),
     });
   } catch {
     setError("Unable to generate the invoice PDF.");
@@ -485,7 +489,7 @@ const data = await response.json();
     className="ml-2 whitespace-nowrap"
     onClick={() => {
       setPaymentInvoice(invoice);
-      setPaymentAmount(String(invoice.balanceDue));
+      setPaymentAmount(String(invoice.balanceDue ?? invoice.total ?? 0));
       setPaymentDate(new Date().toISOString().slice(0, 10));
       setPaymentMethod("upi");
       setPaymentReference("");
