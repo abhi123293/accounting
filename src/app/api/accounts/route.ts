@@ -28,10 +28,13 @@ async function verifyAdminSession() {
   }
 
   // Verify as session cookie (created by /api/auth/session)
-  const decoded = await adminAuth.verifySessionCookie(
-    sessionCookie,
-    true
-  );
+  let decoded;
+  try {
+    decoded = await adminAuth.verifySessionCookie(sessionCookie, true);
+  } catch {
+    // Invalid/expired session cookie (or raw ID token fallback) — force re-auth
+    throw new Error("UNAUTHORIZED");
+  }
 
   if (!isAdminUid(decoded.uid)) {
     throw new Error("FORBIDDEN");
@@ -52,6 +55,13 @@ function errorResponse(error: unknown) {
     return NextResponse.json(
       { error: "Administrator access required." },
       { status: 403 }
+    );
+  }
+
+  if (error instanceof Error && error.message === "ADMIN_NOT_CONFIGURED") {
+    return NextResponse.json(
+      { error: "Firebase Admin is not configured correctly." },
+      { status: 503 }
     );
   }
 

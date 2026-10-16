@@ -49,7 +49,11 @@ export async function POST(request: Request) {
     });
 
     return response;
-  } catch {
+  } catch (error) {
+    console.error(
+      "Session cookie creation failed:",
+      error instanceof Error ? error.message : error
+    );
     return NextResponse.json(
       { error: "Unable to create session" },
       { status: 401 }

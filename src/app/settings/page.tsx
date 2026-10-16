@@ -58,6 +58,8 @@ import {
   updatePassword,
   reauthenticateWithCredential,
   sendEmailVerification,
+  updateProfile,
+  getAuth,
   EmailAuthProvider,
   AuthError,
 } from "firebase/auth";
@@ -114,6 +116,19 @@ export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [personal, setPersonal] = useState({
+    firstName: "",
+    lastName: "",
+    phone: "",
+    bio: "",
+  });
+  const [personalErrors, setPersonalErrors] = useState<{
+    [key: string]: string;
+  }>({});
+  const [profileTabMessage, setProfileTabMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -227,6 +242,12 @@ export default function SettingsPage() {
     const timer = setTimeout(() => setProfileMessage(null), 5000);
     return () => clearTimeout(timer);
   }, [profileMessage]);
+
+  useEffect(() => {
+    if (!profileTabMessage) return;
+    const timer = setTimeout(() => setProfileTabMessage(null), 5000);
+    return () => clearTimeout(timer);
+  }, [profileTabMessage]);
 
   useEffect(() => {
     if (!taxMessage) return;
@@ -392,15 +413,124 @@ export default function SettingsPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const response = await fetch("/api/profile");
+        const data = await response.json();
+        if (!response.ok || cancelled) return;
+
+        const loaded = (data.profile ?? {}) as Record<string, unknown>;
+        const str = (value: unknown) =>
+          typeof value === "string" ? value : "";
+        const displayName = user.displayName ?? "";
+        const fallbackFirst = displayName.split(" ")[0] ?? "";
+        const fallbackLast = displayName.split(" ").slice(1).join(" ");
+
+        setPersonal({
+          firstName: str(loaded.firstName) || fallbackFirst,
+          lastName: str(loaded.lastName) || fallbackLast,
+          phone: str(loaded.phone),
+          bio: str(loaded.bio),
+        });
+      } catch {
+        // keep empty defaults if profile cannot be loaded
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.uid]);
+
   const hasPasswordProvider =
     user?.providerData.some((provider) => provider.providerId === "password") ?? false;
 
-  const handleSave = async () => {
+  const handleSave = async (event?: React.FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+    const errors: { [key: string]: string } = {};
+    const firstName = personal.firstName.trim();
+    const lastName = personal.lastName.trim();
+    const phone = personal.phone.trim();
+    const bio = personal.bio.trim();
+
+    if (!firstName) {
+      errors.firstName = "First name is required.";
+    } else if (firstName.length > 60) {
+      errors.firstName = "First name is too long (max 60 characters).";
+    }
+
+    if (lastName.length > 60) {
+      errors.lastName = "Last name is too long (max 60 characters).";
+    }
+
+    if (phone.length > 30) {
+      errors.phone = "Phone number is too long.";
+    }
+
+    if (bio.length > 200) {
+      errors.bio = "Bio is too long (max 200 characters).";
+    }
+
+    setPersonalErrors(errors);
+
+    if (Object.keys(errors).length > 0) {
+      setProfileTabMessage({
+        type: "error",
+        text: "Please fix the highlighted fields.",
+      });
+      return;
+    }
+
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    setSaved(false);
+    setProfileTabMessage(null);
+
+    try {
+      const response = await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ firstName, lastName, phone, bio }),
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Unable to save profile.");
+      }
+
+      if (user) {
+        try {
+          const displayName = `${firstName} ${lastName}`.trim();
+          await updateProfile(user, { displayName });
+          await user.reload();
+          window.dispatchEvent(
+            new CustomEvent("auth-update", {
+              detail: getAuth().currentUser ?? user,
+            })
+          );
+        } catch {
+          // auth name sync is best-effort; the saved profile still applies
+        }
+      }
+
+      setSaved(true);
+      setProfileTabMessage({
+        type: "success",
+        text: "Profile saved.",
+      });
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      setProfileTabMessage({
+        type: "error",
+        text:
+          error instanceof Error ? error.message : "Unable to save profile.",
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const closePasswordDialog = () => {
@@ -1153,30 +1283,129 @@ export default function SettingsPage() {
                   <CardDescription>Manage your personal information</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {profileTabMessage && (
+                    <div
+                      role={profileTabMessage.type === "error" ? "alert" : "status"}
+                      className={cn(
+                        "rounded-md border px-4 py-3 text-sm",
+                        profileTabMessage.type === "error"
+                          ? "border-destructive/40 bg-destructive/10 text-destructive"
+                          : "border-green-600/40 bg-green-600/10 text-green-700 dark:text-green-400"
+                      )}
+                    >
+                      {profileTabMessage.text}
+                    </div>
+                  )}
+                  <form onSubmit={handleSave} noValidate className="space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="firstName">First Name</Label>
-                      <Input id="firstName" defaultValue={user?.displayName?.split(" ")[0] || "John"} />
+                      <Input
+                        id="firstName"
+                        value={personal.firstName}
+                        onChange={(e) => {
+                          setPersonal((prev) => ({
+                            ...prev,
+                            firstName: e.target.value,
+                          }));
+                          setPersonalErrors((prev) => ({
+                            ...prev,
+                            firstName: "",
+                          }));
+                        }}
+                        aria-invalid={!!personalErrors.firstName}
+                        disabled={saving}
+                      />
+                      {personalErrors.firstName && (
+                        <p className="text-sm text-destructive">
+                          {personalErrors.firstName}
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="lastName">Last Name</Label>
-                      <Input id="lastName" defaultValue={user?.displayName?.split(" ").slice(1).join(" ") || "Doe"} />
+                      <Input
+                        id="lastName"
+                        value={personal.lastName}
+                        onChange={(e) => {
+                          setPersonal((prev) => ({
+                            ...prev,
+                            lastName: e.target.value,
+                          }));
+                          setPersonalErrors((prev) => ({
+                            ...prev,
+                            lastName: "",
+                          }));
+                        }}
+                        aria-invalid={!!personalErrors.lastName}
+                        disabled={saving}
+                      />
+                      {personalErrors.lastName && (
+                        <p className="text-sm text-destructive">
+                          {personalErrors.lastName}
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="email">Email</Label>
-                      <Input id="email" type="email" defaultValue={user?.email || "john@company.com"} disabled />
+                      <Input
+                        id="email"
+                        type="email"
+                        value={user?.email ?? ""}
+                        disabled
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="phone">Phone</Label>
-                      <Input id="phone" defaultValue="+91 98765 43210" />
+                      <Input
+                        id="phone"
+                        value={personal.phone}
+                        onChange={(e) => {
+                          setPersonal((prev) => ({
+                            ...prev,
+                            phone: e.target.value,
+                          }));
+                          setPersonalErrors((prev) => ({
+                            ...prev,
+                            phone: "",
+                          }));
+                        }}
+                        aria-invalid={!!personalErrors.phone}
+                        disabled={saving}
+                      />
+                      {personalErrors.phone && (
+                        <p className="text-sm text-destructive">
+                          {personalErrors.phone}
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-2 sm:col-span-2">
                       <Label htmlFor="bio">Bio</Label>
-                      <Input id="bio" defaultValue="Finance professional with 10+ years experience" />
+                      <Input
+                        id="bio"
+                        value={personal.bio}
+                        onChange={(e) => {
+                          setPersonal((prev) => ({
+                            ...prev,
+                            bio: e.target.value,
+                          }));
+                          setPersonalErrors((prev) => ({
+                            ...prev,
+                            bio: "",
+                          }));
+                        }}
+                        aria-invalid={!!personalErrors.bio}
+                        disabled={saving}
+                      />
+                      {personalErrors.bio && (
+                        <p className="text-sm text-destructive">
+                          {personalErrors.bio}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex justify-end pt-4 border-t border-border">
-                    <Button onClick={handleSave} disabled={saving}>
+                    <Button type="submit" disabled={saving}>
                       {saving ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1192,6 +1421,7 @@ export default function SettingsPage() {
                       )}
                     </Button>
                   </div>
+                  </form>
                 </CardContent>
               </Card>
             </TabsContent>

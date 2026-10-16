@@ -29,22 +29,24 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 async function setSessionCookie(token: string) {
-  try {
-    const response = await fetch("/api/auth/session", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+  const response = await fetch("/api/auth/session", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 
-    if (!response.ok) {
-      // Fallback to client-side cookie if server fails
-      document.cookie = `__session=${token}; path=/; max-age=${60 * 60 * 24 * 5}; SameSite=Lax`;
-      return;
-    }
-  } catch {
-    // Fallback to client-side cookie on network error
-    document.cookie = `__session=${token}; path=/; max-age=${60 * 60 * 24 * 5}; SameSite=Lax`;
+  if (!response.ok) {
+    // Do not fall back to storing the raw ID token as __session —
+    // adminAuth.verifySessionCookie() only accepts session cookies,
+    // and a raw token makes every API route fail with a generic 500.
+    const body = await response.json().catch(() => null);
+    console.error(
+      "Session sync failed:",
+      response.status,
+      body?.error ?? response.statusText
+    );
+    throw new Error("SESSION_SYNC_FAILED");
   }
 }
 

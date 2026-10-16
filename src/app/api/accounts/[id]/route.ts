@@ -30,10 +30,21 @@ async function verifyAdmin() {
 
   if (!session) throw new Error("UNAUTHORIZED");
 
-  const decoded = await adminAuth.verifySessionCookie(session, true);
+  try {
+    const decoded = await adminAuth.verifySessionCookie(session, true);
 
-  if (!isAdminUid(decoded.uid)) {
-    throw new Error("FORBIDDEN");
+    if (!isAdminUid(decoded.uid)) {
+      throw new Error("FORBIDDEN");
+    }
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message === "FORBIDDEN" || error.message === "UNAUTHORIZED")
+    ) {
+      throw error;
+    }
+    // Invalid/expired session cookie (or raw ID token fallback) — force re-auth
+    throw new Error("UNAUTHORIZED");
   }
 }
 
